@@ -59,7 +59,7 @@ erTall func =
 
 converter : Converter
 converter =
-    { name = "Avstand"
+    { name = "Distance"
     , siUnit =
         SiUnit
             { name = "meter"
@@ -69,6 +69,38 @@ converter =
         [ FactorUnit 0.001
             { name = "millimeter"
             , abbreviation = "mm"
+            }
+        , FactorUnit 0.01
+            { name = "centimeter"
+            , abbreviation = "cm"
+            }
+        , FactorUnit 1000
+            { name = "kilometer"
+            , abbreviation = "km"
+            }
+        , FactorUnit 10000
+            { name = "mil"
+            , abbreviation = "mil"
+            }
+        , FactorUnit 0.0254
+            { name = "inch"
+            , abbreviation = "\""
+            }
+        , FactorUnit 0.3038
+            { name = "feet"
+            , abbreviation = "ft"
+            }
+        , FactorUnit 0.9144
+            { name = "yard"
+            , abbreviation = "mi"
+            }
+        , FactorUnit 1609.34
+            { name = "mile"
+            , abbreviation = "mi"
+            }
+        , FactorUnit 1852
+            { name = "nautical mile"
+            , abbreviation = ""
             }
         ]
     }
