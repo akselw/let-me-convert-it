@@ -25,7 +25,7 @@ type Unit
 
 converters : List Converter
 converters =
-    [ distance, weight ]
+    [ distance, weight, area ]
 
 
 distance : Converter
@@ -97,6 +97,55 @@ weight =
         , FactorUnit 0.454
             { name = "pound"
             , abbreviation = "lb"
+            }
+        ]
+    }
+
+
+area : Converter
+area =
+    { name = "Area"
+    , siUnit =
+        SiUnit
+            { name = "square meter"
+            , abbreviation = "m²"
+            }
+    , factors =
+        [ FactorUnit 0.000001
+            { name = "square millimeter"
+            , abbreviation = "mm²"
+            }
+        , FactorUnit 0.0001
+            { name = "square centimeter"
+            , abbreviation = "cm²"
+            }
+        , FactorUnit 1000
+            { name = "mål"
+            , abbreviation = ""
+            }
+        , FactorUnit 10000
+            { name = "hectare"
+            , abbreviation = ""
+            }
+        , FactorUnit 1000000
+            { name = "square kilometer"
+            , abbreviation = "km²"
+            }
+        , FactorUnit 0.0
+            { name = "square centimeter"
+            , abbreviation = "cm²"
+            }
+        , FactorUnit 0.00064516
+            { name = "square inch"
+            , abbreviation = ""
+            }
+        , FactorUnit 0.09290304
+            { name = "square foot"
+            , abbreviation = ""
+            }
+        , FactorUnit 2589988.110336
+            { name = "square mile"
+            , abbreviation = ""
             }
         ]
     }
