@@ -5,11 +5,13 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "elm-app build",
     "start": "node ./server/server.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "create-elm-app": "^1.10.3",
     "express": "^4.16.3"
   }
 }
