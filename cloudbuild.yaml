@@ -4,6 +4,12 @@ steps:
 - name: 'gcr.io/cloud-builders/npm'
   args: ['run', 'build']
 - name: 'gcr.io/cloud-builders/docker'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$COMMIT_SHA', '.' ]
-images:
-- 'gcr.io/$PROJECT_ID/$COMMIT_SHA'
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/let-me-convert-it', '.' ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'push', 'gcr.io/$PROJECT_ID/let-me-convert-it' ]
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+  - app
+  - deploy
+  - --quiet
+  - --image-url=gcr.io/$PROJECT_ID/let-me-convert-it:$COMMIT_SHA
