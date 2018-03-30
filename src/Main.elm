@@ -12,8 +12,7 @@ import Converters exposing (..)
 
 type alias Model =
     { converters : List Converter
-    , valgtConverter :
-        Maybe ConverterSelection
+    , valgtConverter : Maybe ConverterSelection
     , inputFelt : Maybe String
     }
 
@@ -210,46 +209,43 @@ convertInput converterSelection inputFelt =
 view : Model -> Html Msg
 view model =
     div []
-        [ img [ src "/logo.svg" ] []
-        , div []
-            [ select [ onInput MeassurableChanged ]
-                (option [] [ text "---------" ]
-                    :: List.map lagConverterOption model.converters
-                )
-            , case model.valgtConverter of
-                Maybe.Just converterValg ->
-                    inputSelect converterValg
+        [ select [ onInput MeassurableChanged ]
+            (option [] [ text "---------" ]
+                :: List.map lagConverterOption model.converters
+            )
+        , case model.valgtConverter of
+            Maybe.Just converterValg ->
+                inputSelect converterValg
 
-                Maybe.Nothing ->
-                    div [] []
-            , case model.valgtConverter of
-                Maybe.Just converterValg ->
-                    div [] [ input [ onInput InputOppdatert ] [] ]
+            Maybe.Nothing ->
+                div [] []
+        , case model.valgtConverter of
+            Maybe.Just converterValg ->
+                div [] [ input [ onInput InputOppdatert ] [] ]
 
-                Maybe.Nothing ->
-                    div [] []
-            , case model.valgtConverter of
-                Maybe.Just converterValg ->
-                    outputSelect converterValg
+            Maybe.Nothing ->
+                div [] []
+        , case model.valgtConverter of
+            Maybe.Just converterValg ->
+                outputSelect converterValg
 
-                Maybe.Nothing ->
-                    div [] []
-            , case model.valgtConverter of
-                Maybe.Just converterValg ->
-                    let
-                        conversionResult =
-                            convertInput converterValg model.inputFelt
-                    in
-                        case conversionResult of
-                            Ok res ->
-                                div [] [ input [ disabled True, value res ] [] ]
+            Maybe.Nothing ->
+                div [] []
+        , case model.valgtConverter of
+            Maybe.Just converterValg ->
+                let
+                    conversionResult =
+                        convertInput converterValg model.inputFelt
+                in
+                    case conversionResult of
+                        Ok res ->
+                            div [] [ input [ disabled True, value res ] [] ]
 
-                            Err error ->
-                                div [] [ input [ disabled True, value error ] [] ]
+                        Err error ->
+                            div [] [ input [ disabled True, value error ] [] ]
 
-                Maybe.Nothing ->
-                    div [] []
-            ]
+            Maybe.Nothing ->
+                div [] []
         ]
 
 
