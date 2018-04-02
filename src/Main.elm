@@ -249,44 +249,40 @@ convertInput converterState inputFelt =
 view : Model -> Html Msg
 view model =
     div []
-        [ select [ onInput MeassurableChanged ]
+        (select [ onInput MeassurableChanged ]
             (option [] [ text "---------" ]
                 :: List.map lagConverterOption model.converters
             )
-        , case model.valgtConverter of
-            Maybe.Just converterValg ->
-                inputSelect converterValg
+            :: converterView model
+        )
 
-            Maybe.Nothing ->
-                div [] []
-        , case model.valgtConverter of
-            Maybe.Just converterValg ->
-                div [] [ input [ onInput InputOppdatert ] [] ]
 
-            Maybe.Nothing ->
-                div [] []
-        , case model.valgtConverter of
-            Maybe.Just converterValg ->
-                outputSelect converterValg
+converterView : Model -> List (Html Msg)
+converterView model =
+    case model.valgtConverter of
+        Maybe.Just converterState ->
+            [ inputSelect converterState
+            , input [ onInput InputOppdatert ] []
+            , outputSelect converterState
+            , outputDisplay converterState model
+            ]
 
-            Maybe.Nothing ->
-                div [] []
-        , case model.valgtConverter of
-            Maybe.Just converterValg ->
-                let
-                    conversionResult =
-                        convertInput converterValg model.inputFelt
-                in
-                    case conversionResult of
-                        Ok res ->
-                            div [] [ input [ disabled True, value res ] [] ]
+        Maybe.Nothing ->
+            []
 
-                        Err error ->
-                            div [] [ input [ disabled True, value error ] [] ]
 
-            Maybe.Nothing ->
-                div [] []
-        ]
+outputDisplay : ConverterState -> Model -> Html Msg
+outputDisplay converterState model =
+    let
+        conversionResult =
+            convertInput converterState model.inputFelt
+    in
+        case conversionResult of
+            Ok res ->
+                div [] [ input [ disabled True, value res ] [] ]
+
+            Err error ->
+                div [] [ input [ disabled True, value error ] [] ]
 
 
 
