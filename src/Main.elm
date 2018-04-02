@@ -10,16 +10,26 @@ import Converters exposing (..)
 ---- MODEL ----
 
 
+type alias Test =
+    {}
+
+
 type alias Model =
     { converters : List Converter
-    , valgtConverter : Maybe ConverterSelection
+    , valgtConverter : Maybe ConverterState
     , inputFelt : Maybe String
     }
 
 
-type alias ConverterSelection =
+type InputState
+    = SiState SiDefinition (Maybe String)
+    | FactorState FactorDefinition (Maybe String)
+    | ComboState ComboDefinition (Maybe ( String, String ))
+
+
+type alias ConverterState =
     { converter : Converter
-    , input : Unit
+    , input : InputState
     , output : Unit
     }
 
@@ -51,6 +61,7 @@ init =
 
 type Msg
     = InputOppdatert String
+    | SecondInputOppdatert String
     | MeassurableChanged String
     | InputUnitChanged String
     | OutputUnitChanged String
@@ -63,19 +74,28 @@ sameUnitName valgtNavn =
             SiUnit unitName ->
                 valgtNavn == unitName.name
 
-            FactorUnit _ unitName ->
-                valgtNavn == unitName.name
+            FactorUnit definition ->
+                valgtNavn == definition.name.name
+
+            ComboUnit definition ->
+                valgtNavn == definition.comboName
 
 
-findUnit : String -> ConverterSelection -> Maybe Unit
-findUnit valgtNavn converterSelection =
-    find (sameUnitName valgtNavn) (converterSelection.converter.siUnit :: converterSelection.converter.factors)
+findUnit : String -> ConverterState -> Maybe Unit
+findUnit valgtNavn converterState =
+    find (sameUnitName valgtNavn) ((SiUnit converterState.converter.siUnit) :: converterState.converter.factors)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         InputOppdatert inputString ->
+            if inputString == "" then
+                ( { model | inputFelt = Maybe.Nothing }, Cmd.none )
+            else
+                ( { model | inputFelt = Maybe.Just inputString }, Cmd.none )
+
+        SecondInputOppdatert inputString ->
             if inputString == "" then
                 ( { model | inputFelt = Maybe.Nothing }, Cmd.none )
             else
@@ -92,8 +112,8 @@ update msg model =
                             | valgtConverter =
                                 Maybe.Just
                                     { converter = converter
-                                    , input = converter.siUnit
-                                    , output = converter.siUnit
+                                    , input = SiState converter.siUnit (Just "")
+                                    , output = SiUnit converter.siUnit
                                     }
                           }
                         , Cmd.none
@@ -104,34 +124,42 @@ update msg model =
 
         InputUnitChanged inputName ->
             case model.valgtConverter of
-                Just converterSelection ->
+                Just converterState ->
                     let
                         input =
-                            findUnit inputName converterSelection
+                            findUnit inputName converterState
                     in
                         case input of
                             Just chosenUnit ->
-                                ( { model | valgtConverter = Just { converterSelection | input = chosenUnit } }, Cmd.none )
+                                case chosenUnit of
+                                    SiUnit definition ->
+                                        ( { model | valgtConverter = Just { converterState | input = SiState definition (Just "") } }, Cmd.none )
+
+                                    FactorUnit definition ->
+                                        ( { model | valgtConverter = Just { converterState | input = FactorState definition (Just "") } }, Cmd.none )
+
+                                    ComboUnit definition ->
+                                        ( { model | valgtConverter = Just { converterState | input = ComboState definition (Just ( "", "" )) } }, Cmd.none )
 
                             Nothing ->
-                                ( { model | valgtConverter = Just { converterSelection | input = converterSelection.converter.siUnit } }, Cmd.none )
+                                ( { model | valgtConverter = Just { converterState | input = SiState converterState.converter.siUnit (Just "") } }, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
 
         OutputUnitChanged outputName ->
             case model.valgtConverter of
-                Just converterSelection ->
+                Just converterState ->
                     let
                         output =
-                            findUnit outputName converterSelection
+                            findUnit outputName converterState
                     in
                         case output of
                             Just chosenUnit ->
-                                ( { model | valgtConverter = Just { converterSelection | output = chosenUnit } }, Cmd.none )
+                                ( { model | valgtConverter = Just { converterState | output = chosenUnit } }, Cmd.none )
 
                             Nothing ->
-                                ( { model | valgtConverter = Just { converterSelection | output = converterSelection.converter.siUnit } }, Cmd.none )
+                                ( { model | valgtConverter = Just { converterState | output = SiUnit converterState.converter.siUnit } }, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -151,44 +179,56 @@ lagUnitOption unit =
         SiUnit unitName ->
             option [] [ text unitName.name ]
 
-        FactorUnit _ unitName ->
-            option [] [ text unitName.name ]
+        FactorUnit definition ->
+            option [] [ text definition.name.name ]
+
+        ComboUnit definition ->
+            option [] [ text definition.comboName ]
 
 
 inputSelect converterValg =
     div []
-        [ select [ onInput InputUnitChanged ] (List.map lagUnitOption (converterValg.converter.siUnit :: converterValg.converter.factors))
+        [ select [ onInput InputUnitChanged ] (List.map lagUnitOption ((SiUnit converterValg.converter.siUnit) :: converterValg.converter.factors))
         ]
 
 
 outputSelect converterValg =
     div []
-        [ select [ onInput OutputUnitChanged ] (List.map lagUnitOption (converterValg.converter.siUnit :: converterValg.converter.factors))
+        [ select [ onInput OutputUnitChanged ] (List.map lagUnitOption ((SiUnit converterValg.converter.siUnit) :: converterValg.converter.factors))
         ]
 
 
-makeConversion : ConverterSelection -> Float -> Float
-makeConversion converterSelection input =
-    case converterSelection.input of
-        SiUnit _ ->
-            case converterSelection.output of
+makeConversion : ConverterState -> Float -> Float
+makeConversion converterState input =
+    case converterState.input of
+        SiState _ inputMaybe ->
+            case converterState.output of
                 SiUnit _ ->
                     input
 
-                FactorUnit factor _ ->
-                    input / factor
+                FactorUnit definition ->
+                    input / definition.factor
 
-        FactorUnit factor _ ->
-            case converterSelection.output of
+                ComboUnit definition ->
+                    -4
+
+        FactorState inputDefinition inputMaybe ->
+            case converterState.output of
                 SiUnit _ ->
-                    input * factor
+                    input * inputDefinition.factor
 
-                FactorUnit outFactor _ ->
-                    input * factor / outFactor
+                FactorUnit outputDefinition ->
+                    input * inputDefinition.factor / outputDefinition.factor
+
+                ComboUnit definition ->
+                    -4
+
+        ComboState definition inputMaybe ->
+            1
 
 
-convertInput : ConverterSelection -> Maybe String -> Result String String
-convertInput converterSelection inputFelt =
+convertInput : ConverterState -> Maybe String -> Result String String
+convertInput converterState inputFelt =
     case inputFelt of
         Just inputString ->
             let
@@ -197,7 +237,7 @@ convertInput converterSelection inputFelt =
             in
                 case input of
                     Ok inputFloat ->
-                        Ok (toString (makeConversion converterSelection inputFloat))
+                        Ok (toString (makeConversion converterState inputFloat))
 
                     Err _ ->
                         Err (inputString ++ " er ikke et tall")
