@@ -290,43 +290,6 @@ view model =
 
 
 
--- case model.valgtConverter of
--- Maybe.Just converter ->
---     div []
---         [ img [ src "/logo.svg" ] []
---         , h1 [] [ text converter.navn ]
---         , div [] [ div [] [ text "Fra" ], input [ onInput InputOppdatert ] [] ]
---         , div []
---             [ div [] [ text "Til" ]
---             , resultat converter model.inputFelt
---             ]
---         , div [] [ text "" ]
---         ]
---
--- Maybe.Nothing ->
---     div []
---         [ img [ src "/logo.svg" ] []
---         , h1 [] [ text "Velg en konverter" ]
---         , ul []
---             (List.map (\c -> li [] [ text c.navn ]) model.converters)
---         ]
--- resultat : Converter -> Maybe String -> Html Msg
--- resultat converter inputFelt =
---     case inputFelt of
---         Maybe.Just inp ->
---             let
---                 res =
---                     converter.funksjon inp
---             in
---                 case res of
---                     Ok str ->
---                         input [ disabled True, value str ] []
---
---                     Err error ->
---                         input [ disabled True, value ("Error: " ++ error) ] []
---
---         Maybe.Nothing ->
---             input [ disabled True ] []
 ---- PROGRAM ----
 
 
