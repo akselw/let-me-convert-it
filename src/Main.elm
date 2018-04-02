@@ -24,7 +24,7 @@ type alias Model =
 type InputState
     = SiState SiDefinition (Maybe String)
     | FactorState FactorDefinition (Maybe String)
-    | ComboState ComboDefinition (Maybe ( String, String ))
+    | ComboState ComboDefinition ( Maybe String, Maybe String )
 
 
 type alias ConverterState =
@@ -86,20 +86,80 @@ findUnit valgtNavn converterState =
     find (sameUnitName valgtNavn) ((SiUnit converterState.converter.siUnit) :: converterState.converter.factors)
 
 
+createComboTuple : String -> ( Maybe String, Maybe String ) -> ( Maybe String, Maybe String )
+createComboTuple inputString tuple =
+    let
+        minorInput =
+            Tuple.second tuple
+    in
+        if inputString == "" then
+            ( Nothing, minorInput )
+        else
+            ( Just inputString, minorInput )
+
+
+updatedInput : String -> InputState -> InputState
+updatedInput inputString state =
+    let
+        inputFelt =
+            if inputString == "" then
+                Nothing
+            else
+                Just inputString
+    in
+        case state of
+            SiState definition _ ->
+                SiState definition inputFelt
+
+            FactorState definition _ ->
+                FactorState definition inputFelt
+
+            ComboState definition tuple ->
+                let
+                    inputTuple =
+                        createComboTuple inputString tuple
+                in
+                    ComboState definition inputTuple
+
+
+updatedMinorInput : String -> ComboDefinition -> ( Maybe String, Maybe String ) -> InputState
+updatedMinorInput inputString definition tuple =
+    let
+        inputFelt =
+            if inputString == "" then
+                Nothing
+            else
+                Just inputString
+
+        newTuple =
+            ( Tuple.first tuple, inputFelt )
+    in
+        ComboState definition newTuple
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         InputOppdatert inputString ->
-            if inputString == "" then
-                ( { model | inputFelt = Maybe.Nothing }, Cmd.none )
-            else
-                ( { model | inputFelt = Maybe.Just inputString }, Cmd.none )
+            case model.valgtConverter of
+                Just converterState ->
+                    ( { model | valgtConverter = Just { converterState | input = updatedInput inputString converterState.input } }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         SecondInputOppdatert inputString ->
-            if inputString == "" then
-                ( { model | inputFelt = Maybe.Nothing }, Cmd.none )
-            else
-                ( { model | inputFelt = Maybe.Just inputString }, Cmd.none )
+            case model.valgtConverter of
+                Just converterState ->
+                    case converterState.input of
+                        ComboState definition tuple ->
+                            ( { model | valgtConverter = Just { converterState | input = updatedMinorInput inputString definition tuple } }, Cmd.none )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         MeassurableChanged meassurableName ->
             let
@@ -139,7 +199,7 @@ update msg model =
                                         ( { model | valgtConverter = Just { converterState | input = FactorState definition (Just "") } }, Cmd.none )
 
                                     ComboUnit definition ->
-                                        ( { model | valgtConverter = Just { converterState | input = ComboState definition (Just ( "", "" )) } }, Cmd.none )
+                                        ( { model | valgtConverter = Just { converterState | input = ComboState definition ( Nothing, Nothing ) } }, Cmd.none )
 
                             Nothing ->
                                 ( { model | valgtConverter = Just { converterState | input = SiState converterState.converter.siUnit (Just "") } }, Cmd.none )
@@ -262,13 +322,29 @@ converterView model =
     case model.valgtConverter of
         Maybe.Just converterState ->
             [ inputSelect converterState
-            , input [ onInput InputOppdatert ] []
+            , inputField converterState
             , outputSelect converterState
             , outputDisplay converterState model
             ]
 
         Maybe.Nothing ->
             []
+
+
+inputField : ConverterState -> Html Msg
+inputField converterState =
+    case converterState.input of
+        SiState siDefinition stringMaybe ->
+            input [ onInput InputOppdatert ] []
+
+        FactorState factorDefinition stringMaybe ->
+            input [ onInput InputOppdatert ] []
+
+        ComboState comboDefinition stringStringMaybe ->
+            div []
+                [ input [ onInput InputOppdatert ] []
+                , input [ onInput SecondInputOppdatert ] []
+                ]
 
 
 outputDisplay : ConverterState -> Model -> Html Msg
