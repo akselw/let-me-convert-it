@@ -48,26 +48,24 @@ converters =
     [ distance, weight, area ]
 
 
-feet : Unit
-feet =
-    FactorUnit
-        { factor = 0.3038
-        , name =
-            { name = "feet"
-            , abbreviation = "ft"
-            }
+feetDefinition : FactorDefinition
+feetDefinition =
+    { factor = 0.3038
+    , name =
+        { name = "feet"
+        , abbreviation = "ft"
         }
+    }
 
 
-inches : Unit
-inches =
-    FactorUnit
-        { factor = 0.0254
-        , name =
-            { name = "inch"
-            , abbreviation = "\""
-            }
+inchDefinition : FactorDefinition
+inchDefinition =
+    { factor = 0.0254
+    , name =
+        { name = "inch"
+        , abbreviation = "\""
         }
+    }
 
 
 distance : Converter
@@ -106,19 +104,14 @@ distance =
                 , abbreviation = "mil"
                 }
             }
-        , FactorUnit
-            { factor = 0.0254
-            , name =
-                { name = "inch"
-                , abbreviation = "\""
-                }
-            }
-        , FactorUnit
-            { factor = 0.3038
-            , name =
-                { name = "feet"
-                , abbreviation = "ft"
-                }
+        , FactorUnit inchDefinition
+        , FactorUnit feetDefinition
+        , ComboUnit
+            { majorFactor = feetDefinition.factor
+            , minorFactor = inchDefinition.factor
+            , majorName = feetDefinition.name
+            , minorName = inchDefinition.name
+            , comboName = "feet and inches"
             }
         , FactorUnit
             { factor = 0.9144
