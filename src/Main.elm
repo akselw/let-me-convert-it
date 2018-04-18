@@ -17,7 +17,6 @@ type alias Test =
 type alias Model =
     { converters : List Converter
     , valgtConverter : Maybe ConverterState
-    , inputFelt : Maybe String
     }
 
 
@@ -49,7 +48,6 @@ init : ( Model, Cmd Msg )
 init =
     ( { converters = converters
       , valgtConverter = Maybe.Nothing
-      , inputFelt = Maybe.Nothing
       }
     , Cmd.none
     )
@@ -137,6 +135,24 @@ updatedMinorInput inputString definition tuple =
         ComboState definition newTuple
 
 
+majorInput : Maybe ConverterState -> Maybe String
+majorInput converterState =
+    case converterState of
+        Just state ->
+            case state.input of
+                SiState _ input ->
+                    input
+
+                FactorState _ input ->
+                    input
+
+                ComboState _ tuple ->
+                    Tuple.first tuple
+
+        Nothing ->
+            Nothing
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -172,7 +188,7 @@ update msg model =
                             | valgtConverter =
                                 Maybe.Just
                                     { converter = converter
-                                    , input = SiState converter.siUnit (Just "")
+                                    , input = SiState converter.siUnit (majorInput model.valgtConverter)
                                     , output = SiUnit converter.siUnit
                                     }
                           }
@@ -193,16 +209,16 @@ update msg model =
                             Just chosenUnit ->
                                 case chosenUnit of
                                     SiUnit definition ->
-                                        ( { model | valgtConverter = Just { converterState | input = SiState definition (Just "") } }, Cmd.none )
+                                        ( { model | valgtConverter = Just { converterState | input = SiState definition (majorInput model.valgtConverter) } }, Cmd.none )
 
                                     FactorUnit definition ->
-                                        ( { model | valgtConverter = Just { converterState | input = FactorState definition (Just "") } }, Cmd.none )
+                                        ( { model | valgtConverter = Just { converterState | input = FactorState definition (majorInput model.valgtConverter) } }, Cmd.none )
 
                                     ComboUnit definition ->
                                         ( { model | valgtConverter = Just { converterState | input = ComboState definition ( Nothing, Nothing ) } }, Cmd.none )
 
                             Nothing ->
-                                ( { model | valgtConverter = Just { converterState | input = SiState converterState.converter.siUnit (Just "") } }, Cmd.none )
+                                ( { model | valgtConverter = Just { converterState | input = SiState converterState.converter.siUnit Nothing } }, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -284,26 +300,87 @@ makeConversion converterState input =
                     -4
 
         ComboState definition inputMaybe ->
-            1
+            -4
 
 
-convertInput : ConverterState -> Maybe String -> Result String String
-convertInput converterState inputFelt =
-    case inputFelt of
+makeComboConversion : Float -> Float -> Unit -> ( Float, Float ) -> Float
+makeComboConversion majorFactor minorFactor outputUnit inputTuple =
+    let
+        siSum : Float
+        siSum =
+            Tuple.first inputTuple * majorFactor + Tuple.second inputTuple * minorFactor
+    in
+        case outputUnit of
+            SiUnit _ ->
+                siSum
+
+            FactorUnit definition ->
+                siSum / definition.factor
+
+            ComboUnit comboDefinition ->
+                -1
+
+
+parseInput : Maybe String -> Result String Float
+parseInput inputMaybe =
+    case inputMaybe of
         Just inputString ->
             let
-                input =
+                inputRes =
                     String.toFloat inputString
             in
-                case input of
+                case inputRes of
                     Ok inputFloat ->
-                        Ok (toString (makeConversion converterState inputFloat))
+                        Ok inputFloat
 
                     Err _ ->
                         Err (inputString ++ " er ikke et tall")
 
         Nothing ->
-            Ok ""
+            Ok 0
+
+
+convertInput : ConverterState -> Result String String
+convertInput converterState =
+    case converterState.input of
+        SiState definition inputFelt ->
+            let
+                input =
+                    parseInput inputFelt
+            in
+                case input of
+                    Ok inputFloat ->
+                        Ok (toString (makeConversion converterState inputFloat))
+
+                    Err error ->
+                        Err error
+
+        FactorState definition inputFelt ->
+            let
+                input =
+                    parseInput inputFelt
+            in
+                case input of
+                    Ok inputFloat ->
+                        Ok (toString (makeConversion converterState inputFloat))
+
+                    Err error ->
+                        Err error
+
+        ComboState definition tuple ->
+            let
+                majorInput =
+                    parseInput (Tuple.first tuple)
+
+                minorInput =
+                    parseInput (Tuple.second tuple)
+            in
+                case ( majorInput, minorInput ) of
+                    ( Ok major, Ok minor ) ->
+                        Ok (toString (makeComboConversion definition.majorFactor definition.minorFactor converterState.output ( major, minor )))
+
+                    _ ->
+                        Err "Feil"
 
 
 view : Model -> Html Msg
@@ -351,7 +428,7 @@ outputDisplay : ConverterState -> Model -> Html Msg
 outputDisplay converterState model =
     let
         conversionResult =
-            convertInput converterState model.inputFelt
+            convertInput converterState
     in
         case conversionResult of
             Ok res ->
