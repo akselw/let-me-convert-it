@@ -7,6 +7,9 @@ elm-stuff
 # elm-repl generated files
 repl-temp-*
 
+.idea/
+*.iml
+
 # Dependency directories
 node_modules
 

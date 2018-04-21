@@ -5,9 +5,20 @@ import Html.Attributes exposing (src, disabled, value)
 import Html.Events exposing (..)
 import List.Extra exposing (find)
 import Converters exposing (..)
+import Element exposing (..)
+import Element.Attributes exposing (..)
+import Element.Events exposing (..)
+import Style exposing (..)
+import Style.Color as Color exposing (text)
+import Style.Font as Font exposing (..)
+import Color exposing (..)
 
 
 ---- MODEL ----
+
+
+(=>) =
+    (,)
 
 
 type alias Test =
@@ -17,12 +28,13 @@ type alias Test =
 type alias Model =
     { converters : List Converter
     , valgtConverter : Maybe ConverterState
+    , input : String
     }
 
 
 type InputState
-    = SiState SiDefinition (Maybe String)
-    | FactorState FactorDefinition (Maybe String)
+    = SiState SiDefinition
+    | FactorState FactorDefinition
     | ComboState ComboDefinition ( Maybe String, Maybe String )
 
 
@@ -48,6 +60,7 @@ init : ( Model, Cmd Msg )
 init =
     ( { converters = converters
       , valgtConverter = Maybe.Nothing
+      , input = "0"
       }
     , Cmd.none
     )
@@ -58,11 +71,13 @@ init =
 
 
 type Msg
-    = InputOppdatert String
-    | SecondInputOppdatert String
+    = SecondInputOppdatert String
     | MeassurableChanged String
     | InputUnitChanged String
     | OutputUnitChanged String
+    | NumberPressed String
+    | CommaPressed
+    | BackspacePressed
 
 
 sameUnitName : String -> (Unit -> Bool)
@@ -96,30 +111,6 @@ createComboTuple inputString tuple =
             ( Just inputString, minorInput )
 
 
-updatedInput : String -> InputState -> InputState
-updatedInput inputString state =
-    let
-        inputFelt =
-            if inputString == "" then
-                Nothing
-            else
-                Just inputString
-    in
-        case state of
-            SiState definition _ ->
-                SiState definition inputFelt
-
-            FactorState definition _ ->
-                FactorState definition inputFelt
-
-            ComboState definition tuple ->
-                let
-                    inputTuple =
-                        createComboTuple inputString tuple
-                in
-                    ComboState definition inputTuple
-
-
 updatedMinorInput : String -> ComboDefinition -> ( Maybe String, Maybe String ) -> InputState
 updatedMinorInput inputString definition tuple =
     let
@@ -135,35 +126,9 @@ updatedMinorInput inputString definition tuple =
         ComboState definition newTuple
 
 
-majorInput : Maybe ConverterState -> Maybe String
-majorInput converterState =
-    case converterState of
-        Just state ->
-            case state.input of
-                SiState _ input ->
-                    input
-
-                FactorState _ input ->
-                    input
-
-                ComboState _ tuple ->
-                    Tuple.first tuple
-
-        Nothing ->
-            Nothing
-
-
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        InputOppdatert inputString ->
-            case model.valgtConverter of
-                Just converterState ->
-                    ( { model | valgtConverter = Just { converterState | input = updatedInput inputString converterState.input } }, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
         SecondInputOppdatert inputString ->
             case model.valgtConverter of
                 Just converterState ->
@@ -188,7 +153,7 @@ update msg model =
                             | valgtConverter =
                                 Maybe.Just
                                     { converter = converter
-                                    , input = SiState converter.siUnit (majorInput model.valgtConverter)
+                                    , input = SiState converter.siUnit
                                     , output = SiUnit converter.siUnit
                                     }
                           }
@@ -209,16 +174,16 @@ update msg model =
                             Just chosenUnit ->
                                 case chosenUnit of
                                     SiUnit definition ->
-                                        ( { model | valgtConverter = Just { converterState | input = SiState definition (majorInput model.valgtConverter) } }, Cmd.none )
+                                        ( { model | valgtConverter = Just { converterState | input = SiState definition } }, Cmd.none )
 
                                     FactorUnit definition ->
-                                        ( { model | valgtConverter = Just { converterState | input = FactorState definition (majorInput model.valgtConverter) } }, Cmd.none )
+                                        ( { model | valgtConverter = Just { converterState | input = FactorState definition } }, Cmd.none )
 
                                     ComboUnit definition ->
                                         ( { model | valgtConverter = Just { converterState | input = ComboState definition ( Nothing, Nothing ) } }, Cmd.none )
 
                             Nothing ->
-                                ( { model | valgtConverter = Just { converterState | input = SiState converterState.converter.siUnit Nothing } }, Cmd.none )
+                                ( { model | valgtConverter = Just { converterState | input = SiState converterState.converter.siUnit } }, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -240,6 +205,24 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+        NumberPressed numberString ->
+            if model.input == "0" then
+                ( { model | input = numberString }, Cmd.none )
+            else
+                ( { model | input = model.input ++ numberString }, Cmd.none )
+
+        CommaPressed ->
+            if String.contains "." model.input then
+                ( model, Cmd.none )
+            else
+                ( { model | input = model.input ++ "." }, Cmd.none )
+
+        BackspacePressed ->
+            if String.length model.input == 1 then
+                ( { model | input = "0" }, Cmd.none )
+            else
+                ( { model | input = String.dropRight 1 model.input }, Cmd.none )
+
 
 
 ---- VIEW ----
@@ -247,37 +230,37 @@ update msg model =
 
 lagConverterOption : Converter -> Html Msg
 lagConverterOption converter =
-    option [] [ text converter.name ]
+    option [] [ Html.text converter.name ]
 
 
 lagUnitOption unit =
     case unit of
         SiUnit unitName ->
-            option [] [ text unitName.name ]
+            option [] [ Html.text unitName.name ]
 
         FactorUnit definition ->
-            option [] [ text definition.name.name ]
+            option [] [ Html.text definition.name.name ]
 
         ComboUnit definition ->
-            option [] [ text definition.comboName ]
+            option [] [ Html.text definition.comboName ]
 
 
 inputSelect converterValg =
     div []
-        [ select [ onInput InputUnitChanged ] (List.map lagUnitOption ((SiUnit converterValg.converter.siUnit) :: converterValg.converter.factors))
+        [ select [ Html.Events.onInput InputUnitChanged ] (List.map lagUnitOption ((SiUnit converterValg.converter.siUnit) :: converterValg.converter.factors))
         ]
 
 
 outputSelect converterValg =
     div []
-        [ select [ onInput OutputUnitChanged ] (List.map lagUnitOption ((SiUnit converterValg.converter.siUnit) :: converterValg.converter.factors))
+        [ select [ Html.Events.onInput OutputUnitChanged ] (List.map lagUnitOption ((SiUnit converterValg.converter.siUnit) :: converterValg.converter.factors))
         ]
 
 
 makeConversion : ConverterState -> Float -> Float
 makeConversion converterState input =
     case converterState.input of
-        SiState _ inputMaybe ->
+        SiState _ ->
             case converterState.output of
                 SiUnit _ ->
                     input
@@ -288,7 +271,7 @@ makeConversion converterState input =
                 ComboUnit definition ->
                     -4
 
-        FactorState inputDefinition inputMaybe ->
+        FactorState inputDefinition ->
             case converterState.output of
                 SiUnit _ ->
                     input * inputDefinition.factor
@@ -340,13 +323,18 @@ parseInput inputMaybe =
             Ok 0
 
 
-convertInput : ConverterState -> Result String String
-convertInput converterState =
+removeFormatting : String -> String
+removeFormatting input =
+    input |> String.split " " |> String.join ""
+
+
+convertInput : ConverterState -> String -> Result String String
+convertInput converterState inputFelt =
     case converterState.input of
-        SiState definition inputFelt ->
+        SiState definition ->
             let
                 input =
-                    parseInput inputFelt
+                    inputFelt |> removeFormatting |> Just |> parseInput
             in
                 case input of
                     Ok inputFloat ->
@@ -355,10 +343,10 @@ convertInput converterState =
                     Err error ->
                         Err error
 
-        FactorState definition inputFelt ->
+        FactorState definition ->
             let
                 input =
-                    parseInput inputFelt
+                    parseInput (Just inputFelt)
             in
                 case input of
                     Ok inputFloat ->
@@ -383,15 +371,159 @@ convertInput converterState =
                         Err "Feil"
 
 
-view : Model -> Html Msg
-view model =
+type MyStyles
+    = None
+    | InputStyle
+    | ButtonStyle
+
+
+
+-- We define our stylesheet
+
+
+stylesheet =
+    Style.styleSheet
+        [ Style.style None []
+        , Style.style InputStyle
+            [ Color.text black
+            , Color.background lightGray
+            , Font.size 20 -- all units given as px
+            ]
+        , Style.style ButtonStyle
+            [ Color.text white
+            , Color.background darkGray
+            , Font.size 20 -- all units given as px
+            ]
+        ]
+
+
+numberButtons : Int -> List (OnGrid (Element MyStyles variation Msg))
+numberButtons offset =
+    List.map
+        (\num ->
+            let
+                numberString =
+                    toString num
+            in
+                cell
+                    { start = ( (num - 1) % 3, (2 - ((num - 1) // 3)) + offset )
+                    , width = 1
+                    , height = 1
+                    , content = el ButtonStyle [ Element.Events.onClick (NumberPressed numberString), width fill, Element.Attributes.center ] (Element.text numberString)
+                    }
+        )
+        [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
+
+
+calc : Model -> Element MyStyles variation Msg
+calc model =
+    let
+        outputBox =
+            case model.valgtConverter of
+                Just converterState ->
+                    let
+                        conversionResult =
+                            convertInput converterState model.input
+                    in
+                        case conversionResult of
+                            Ok res ->
+                                el InputStyle [ width (px 300) ] (Element.text res)
+
+                            Err error ->
+                                el InputStyle [ width (px 300) ] (Element.text "")
+
+                Nothing ->
+                    el InputStyle [ width (px 300) ] (Element.text "")
+    in
+        grid None
+            [ padding 7, spacing 20, width (percent 100), Element.Attributes.center ]
+            { columns = [ fill, fill, fill, fill ]
+            , rows =
+                [ px 50
+                , px 75
+                , px 75
+                , px 75
+                , px 75
+                , px 75
+                , px 75
+                ]
+            , cells =
+                (numberButtons 3)
+                    ++ [ cell
+                            { start = ( 0, 0 )
+                            , width = 2
+                            , height = 1
+                            , content = el InputStyle [ Element.Events.onClick CommaPressed, width (percent 100), Element.Attributes.center ] (Element.text "meter")
+                            }
+                       , cell
+                            { start = ( 2, 0 )
+                            , width = 2
+                            , height = 1
+                            , content = el InputStyle [ Element.Events.onClick CommaPressed, width (percent 100), Element.Attributes.center ] (Element.text "feet")
+                            }
+                       , cell
+                            { start = ( 0, 1 )
+                            , width = 4
+                            , height = 1
+                            , content = el InputStyle [ Element.Events.onClick CommaPressed, width (percent 100), Element.Attributes.center ] (Element.text model.input)
+                            }
+                       , cell
+                            { start = ( 0, 2 )
+                            , width = 4
+                            , height = 1
+                            , content = el InputStyle [ Element.Events.onClick CommaPressed, width (percent 100), Element.Attributes.center ] outputBox
+                            }
+                       , cell
+                            { start = ( 0, 6 )
+                            , width = 1
+                            , height = 1
+                            , content = el ButtonStyle [ Element.Events.onClick CommaPressed ] (Element.text ",")
+                            }
+                       , cell
+                            { start = ( 1, 6 )
+                            , width = 1
+                            , height = 1
+                            , content = el ButtonStyle [ Element.Events.onClick (NumberPressed "0") ] (Element.text "0")
+                            }
+                       , cell
+                            { start = ( 2, 6 )
+                            , width = 1
+                            , height = 1
+                            , content = el ButtonStyle [ Element.Events.onClick BackspacePressed ] (Element.text "<-")
+                            }
+                       ]
+            }
+
+
+calculator : Model -> Html Msg
+calculator model =
+    Element.layout stylesheet <|
+        -- An el is the most basic element, like a <div>
+        calc model
+
+
+
+-- Element.layout renders the elements as html.
+-- Every layout requires a stylesheet.
+
+
+unitSelector : Model -> Html Msg
+unitSelector model =
     div []
-        (select [ onInput MeassurableChanged ]
-            (option [] [ text "---------" ]
+        (select [ Html.Events.onInput MeassurableChanged ]
+            (option [] [ Html.text "---------" ]
                 :: List.map lagConverterOption model.converters
             )
             :: converterView model
         )
+
+
+view : Model -> Html Msg
+view model =
+    div []
+        [ unitSelector model
+        , calculator model
+        ]
 
 
 converterView : Model -> List (Html Msg)
@@ -399,7 +531,6 @@ converterView model =
     case model.valgtConverter of
         Maybe.Just converterState ->
             [ inputSelect converterState
-            , inputField converterState
             , outputSelect converterState
             , outputDisplay converterState model
             ]
@@ -408,27 +539,11 @@ converterView model =
             []
 
 
-inputField : ConverterState -> Html Msg
-inputField converterState =
-    case converterState.input of
-        SiState siDefinition stringMaybe ->
-            input [ onInput InputOppdatert ] []
-
-        FactorState factorDefinition stringMaybe ->
-            input [ onInput InputOppdatert ] []
-
-        ComboState comboDefinition stringStringMaybe ->
-            div []
-                [ input [ onInput InputOppdatert ] []
-                , input [ onInput SecondInputOppdatert ] []
-                ]
-
-
 outputDisplay : ConverterState -> Model -> Html Msg
 outputDisplay converterState model =
     let
         conversionResult =
-            convertInput converterState
+            convertInput converterState model.input
     in
         case conversionResult of
             Ok res ->
