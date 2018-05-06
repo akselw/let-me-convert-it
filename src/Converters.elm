@@ -3,14 +3,7 @@ module Converters exposing (..)
 
 type alias Converter =
     { name : String
-    , siUnit : SiDefinition
-    , factors : List Unit
-    }
-
-
-type alias UnitName =
-    { name : String
-    , abbreviation : String
+    , units : List UnitType
     }
 
 
@@ -18,29 +11,16 @@ type alias Factor =
     Float
 
 
-type alias SiDefinition =
-    UnitName
-
-
-type alias FactorDefinition =
-    { factor : Float
-    , name : UnitName
+type alias Unit =
+    { factor : Factor
+    , name : String
+    , abbreviation : String
     }
 
 
-type alias ComboDefinition =
-    { majorFactor : Float
-    , minorFactor : Float
-    , comboName : String
-    , majorName : UnitName
-    , minorName : UnitName
-    }
-
-
-type Unit
-    = SiUnit SiDefinition
-    | FactorUnit FactorDefinition
-    | ComboUnit ComboDefinition
+type UnitType
+    = SingleUnit Unit
+    | ComboUnit Unit Unit
 
 
 converters : List Converter
@@ -48,91 +28,67 @@ converters =
     [ distance, weight, area ]
 
 
-feetDefinition : FactorDefinition
+feetDefinition : Unit
 feetDefinition =
     { factor = 0.3038
-    , name =
-        { name = "feet"
-        , abbreviation = "ft"
-        }
+    , name = "feet"
+    , abbreviation = "ft"
     }
 
 
-inchDefinition : FactorDefinition
+inchDefinition : Unit
 inchDefinition =
     { factor = 0.0254
-    , name =
-        { name = "inch"
-        , abbreviation = "\""
-        }
+    , name = "inch"
+    , abbreviation = "\""
+    }
+
+
+meter : Unit
+meter =
+    { factor = 1
+    , name = "meter"
+    , abbreviation = "m"
     }
 
 
 distance : Converter
 distance =
     { name = "Distance"
-    , siUnit =
-        { name = "meter"
-        , abbreviation = "m"
-        }
-    , factors =
-        [ FactorUnit
-            { factor = 0.001
-            , name =
-                { name = "millimeter"
-                , abbreviation = "mm"
-                }
-            }
-        , FactorUnit
+    , units =
+        [ SingleUnit meter
+        , SingleUnit
             { factor = 0.01
-            , name =
-                { name = "centimeter"
-                , abbreviation = "cm"
-                }
+            , name = "centimeter"
+            , abbreviation = "cm"
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 1000
-            , name =
-                { name = "kilometer"
-                , abbreviation = "km"
-                }
+            , name = "kilometer"
+            , abbreviation = "km"
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 10000
-            , name =
-                { name = "mil"
-                , abbreviation = "mil"
-                }
+            , name = "mil"
+            , abbreviation = "mil"
             }
-        , FactorUnit inchDefinition
-        , FactorUnit feetDefinition
-        , ComboUnit
-            { majorFactor = feetDefinition.factor
-            , minorFactor = inchDefinition.factor
-            , majorName = feetDefinition.name
-            , minorName = inchDefinition.name
-            , comboName = "feet and inches"
-            }
-        , FactorUnit
+        , SingleUnit inchDefinition
+        , SingleUnit feetDefinition
+        , ComboUnit feetDefinition inchDefinition
+        , SingleUnit
             { factor = 0.9144
-            , name =
-                { name = "yard"
-                , abbreviation = "mi"
-                }
+            , name = "yard"
+            , abbreviation = "mi"
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 1609.34
-            , name =
-                { name = "mile"
-                , abbreviation = "mi"
-                }
+            , name = "mile"
+            , abbreviation = "mi"
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 1852
-            , name =
-                { name = "nautical mile"
-                , abbreviation = ""
-                }
+            , name = "nautical mile"
+            , abbreviation = ""
             }
         ]
     }
@@ -141,32 +97,26 @@ distance =
 weight : Converter
 weight =
     { name = "Weight"
-    , siUnit =
-        { name = "kilogram"
-        , abbreviation = "kg"
-        }
-    , factors =
-        [ FactorUnit
-            { factor =
-                0.001
-            , name =
-                { name = "gram"
-                , abbreviation = "g"
-                }
+    , units =
+        [ SingleUnit
+            { factor = 1
+            , name = "kilogram"
+            , abbreviation = "kg"
             }
-        , FactorUnit
+        , SingleUnit
+            { factor = 0.001
+            , name = "gram"
+            , abbreviation = "g"
+            }
+        , SingleUnit
             { factor = 1000
-            , name =
-                { name = "metric ton"
-                , abbreviation = ""
-                }
+            , name = "metric ton"
+            , abbreviation = ""
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 0.454
-            , name =
-                { name = "pound"
-                , abbreviation = "lb"
-                }
+            , name = "pound"
+            , abbreviation = "lb"
             }
         ]
     }
@@ -175,73 +125,56 @@ weight =
 area : Converter
 area =
     { name = "Area"
-    , siUnit =
-        { name = "square meter"
-        , abbreviation = "m²"
-        }
-    , factors =
-        [ FactorUnit
+    , units =
+        [ SingleUnit
+            { factor = 1
+            , name = "square meter"
+            , abbreviation = "m²"
+            }
+        , SingleUnit
             { factor = 0.000001
-            , name =
-                { name = "square millimeter"
-                , abbreviation = "mm²"
-                }
+            , name = "square millimeter"
+            , abbreviation = "mm²"
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 0.0001
-            , name =
-                { name = "square centimeter"
-                , abbreviation = "cm²"
-                }
+            , name = "square centimeter"
+            , abbreviation = "cm²"
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 1000
-            , name =
-                { name = "mål"
-                , abbreviation = ""
-                }
+            , name = "mål"
+            , abbreviation = ""
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 10000
-            , name =
-                { name = "hectare"
-                , abbreviation = ""
-                }
+            , name = "hectare"
+            , abbreviation = ""
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 1000000
-            , name =
-                { name = "square kilometer"
-                , abbreviation = "km²"
-                }
+            , name = "square kilometer"
+            , abbreviation = "km²"
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 0.0
-            , name =
-                { name = "square centimeter"
-                , abbreviation = "cm²"
-                }
+            , name = "square centimeter"
+            , abbreviation = "cm²"
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 0.00064516
-            , name =
-                { name = "square inch"
-                , abbreviation = ""
-                }
+            , name = "square inch"
+            , abbreviation = ""
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 0.09290304
-            , name =
-                { name = "square foot"
-                , abbreviation = ""
-                }
+            , name = "square foot"
+            , abbreviation = ""
             }
-        , FactorUnit
+        , SingleUnit
             { factor = 2589988.110336
-            , name =
-                { name = "square mile"
-                , abbreviation = ""
-                }
+            , name = "square mile"
+            , abbreviation = ""
             }
         ]
     }
