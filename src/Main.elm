@@ -12,6 +12,7 @@ import Style exposing (..)
 import Style.Color as Color exposing (text)
 import Style.Font as Font exposing (..)
 import Color exposing (..)
+import Round exposing (round)
 
 
 ---- MODEL ----
@@ -469,12 +470,44 @@ commaMinorButtonElement inputState =
 
 addUnit : Unit -> Float -> String
 addUnit unit n =
-    (toString n) ++ " " ++ unit.abbreviation
+    (formatNumber n) ++ " " ++ unit.abbreviation
 
 
 addUnitToTuple : Unit -> Unit -> ( Float, Float ) -> String
 addUnitToTuple majorUnit minorUnit ( major, minor ) =
     (addUnit majorUnit major) ++ " " ++ (addUnit minorUnit minor)
+
+
+formatNumber : Float -> String
+formatNumber number =
+    let
+        f =
+            Round.round 3 number
+
+        s =
+            String.split "." f
+    in
+        case s of
+            primary :: decimal :: rest ->
+                let
+                    p =
+                        String.foldr
+                            (\c s ->
+                                if ((c == '0') && (String.length s == 0)) then
+                                    ""
+                                else
+                                    (String.cons c s)
+                            )
+                            ""
+                            decimal
+                in
+                    if (String.length p /= 0) then
+                        primary ++ "." ++ p
+                    else
+                        primary
+
+            _ ->
+                "b"
 
 
 outputElement : ConverterState -> Element MyStyles variation Msg
