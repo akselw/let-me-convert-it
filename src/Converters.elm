@@ -4,6 +4,8 @@ module Converters exposing (..)
 type alias Converter =
     { name : String
     , units : List UnitType
+    , defaultInput : UnitType
+    , defaultOutput : UnitType
     }
 
 
@@ -91,6 +93,22 @@ distance =
             , abbreviation = ""
             }
         ]
+    , defaultInput = ComboUnit feetDefinition inchDefinition
+    , defaultOutput = SingleUnit meter
+    }
+
+
+poundDefinition =
+    { factor = 0.454
+    , name = "pound"
+    , abbreviation = "lb"
+    }
+
+
+kiloDefinition =
+    { factor = 1
+    , name = "kilogram"
+    , abbreviation = "kg"
     }
 
 
@@ -119,6 +137,22 @@ weight =
             , abbreviation = "lb"
             }
         ]
+    , defaultInput = SingleUnit poundDefinition
+    , defaultOutput = SingleUnit kiloDefinition
+    }
+
+
+squareFootDefinition =
+    { factor = 0.09290304
+    , name = "square foot"
+    , abbreviation = ""
+    }
+
+
+squareMeterDefinition =
+    { factor = 1
+    , name = "square meter"
+    , abbreviation = "m²"
     }
 
 
@@ -177,4 +211,6 @@ area =
             , abbreviation = ""
             }
         ]
+    , defaultInput = SingleUnit squareFootDefinition
+    , defaultOutput = SingleUnit squareMeterDefinition
     }

@@ -27,8 +27,16 @@ type alias Test =
 
 type alias Model =
     { converters : List Converter
+    , selectionState : SelectionState
     , valgtConverter : ConverterState
     }
+
+
+type SelectionState
+    = Conversion
+    | UnitSelection
+    | InputSelection
+    | OutputSelection
 
 
 type alias ComboInput =
@@ -69,6 +77,7 @@ init =
             , input = SingleInputState Converters.meter "1"
             , output = ComboUnit Converters.feetDefinition Converters.inchDefinition
             }
+      , selectionState = Conversion
       }
     , Cmd.none
     )
@@ -79,13 +88,14 @@ init =
 
 
 type Msg
-    = MeassurableChanged String
-    | InputUnitChanged String
-    | OutputUnitChanged String
+    = MeassurableChanged Converter
+    | InputUnitChanged UnitType
+    | OutputUnitChanged UnitType
     | NumberPressed String
     | CommaPressed
     | BackspacePressed
     | MinorPressed
+    | SelectionStateChanged SelectionState
 
 
 sameUnitName : String -> (UnitType -> Bool)
@@ -226,53 +236,33 @@ update msg model =
             model.valgtConverter
     in
         case msg of
-            MeassurableChanged meassurableName ->
-                model
+            MeassurableChanged converter ->
+                { model
+                    | valgtConverter =
+                        { converter = converter
+                        , input = newInputState converter.defaultInput converterState.input
+                        , output = converter.defaultOutput
+                        }
+                    , selectionState = Conversion
+                }
 
-            --            let
-            --                converter =
-            --                    find (\a -> a.name == meassurableName) model.converters
-            --            in
-            --                { model
-            --                    | valgtConverter =
-            --                        { converter = converter
-            --                        , input = SiState converter.siUnit
-            --                        , output = SiUnit converter.siUnit
-            --                        }
-            --                }
-            InputUnitChanged inputName ->
-                let
-                    converterState : ConverterState
-                    converterState =
-                        model.valgtConverter
+            InputUnitChanged input ->
+                { model
+                    | valgtConverter =
+                        { converterState
+                            | input = (newInputState input model.valgtConverter.input)
+                        }
+                    , selectionState = Conversion
+                }
 
-                    input : Maybe UnitType
-                    input =
-                        findUnit inputName model.valgtConverter
-                in
-                    case input of
-                        Just chosenUnit ->
-                            { model
-                                | valgtConverter =
-                                    { converterState
-                                        | input = (newInputState chosenUnit converterState.input)
-                                    }
-                            }
+            OutputUnitChanged output ->
+                { model
+                    | valgtConverter = { converterState | output = output }
+                    , selectionState = Conversion
+                }
 
-                        Nothing ->
-                            model
-
-            OutputUnitChanged outputName ->
-                let
-                    output =
-                        findUnit outputName converterState
-                in
-                    case output of
-                        Just chosenUnit ->
-                            { model | valgtConverter = { converterState | output = chosenUnit } }
-
-                        Nothing ->
-                            model
+            SelectionStateChanged state ->
+                { model | selectionState = state }
 
             NumberPressed numberString ->
                 { model | valgtConverter = { converterState | input = (numberPress numberString converterState.input) } }
@@ -313,13 +303,13 @@ lagUnitOption unitType =
 
 inputSelect converterValg =
     div []
-        [ select [ Html.Events.onInput InputUnitChanged ] (List.map lagUnitOption converterValg.converter.units)
+        [--- select [ Html.Events.onInput InputUnitChanged ] (List.map lagUnitOption converterValg.converter.units)
         ]
 
 
 outputSelect converterValg =
     div []
-        [ select [ Html.Events.onInput OutputUnitChanged ] (List.map lagUnitOption converterValg.converter.units)
+        [--- select [ Html.Events.onInput OutputUnitChanged ] (List.map lagUnitOption converterValg.converter.units)
         ]
 
 
@@ -386,6 +376,7 @@ type MyStyles
     = None
     | InputStyle
     | ButtonStyle
+    | Background
 
 
 
@@ -399,11 +390,15 @@ stylesheet =
             [ Color.text black
             , Color.background lightGray
             , Font.size 20 -- all units given as px
+            , Font.alignRight
             ]
         , Style.style ButtonStyle
             [ Color.text white
             , Color.background darkGray
             , Font.size 20 -- all units given as px
+            ]
+        , Style.style Background
+            [ Color.background blue
             ]
         ]
 
@@ -492,9 +487,9 @@ outputElement converterState =
             SingleUnit unit ->
                 conversionResult
                     |> Tuple.first
-                    |> toString
+                    |> addUnit unit
                     |> Element.text
-                    |> el InputStyle [ width (px 300) ]
+                    |> el InputStyle [ width (percent 100), paddingRight 8 ]
 
             ComboUnit majorUnit minorUnit ->
                 if (Tuple.second conversionResult == 0) then
@@ -502,12 +497,12 @@ outputElement converterState =
                         |> Tuple.first
                         |> addUnit majorUnit
                         |> Element.text
-                        |> el InputStyle [ width (px 300) ]
+                        |> el InputStyle [ width (percent 100), paddingRight 8 ]
                 else
                     conversionResult
                         |> addUnitToTuple majorUnit minorUnit
                         |> Element.text
-                        |> el InputStyle [ width (px 300) ]
+                        |> el InputStyle [ width (percent 100), paddingRight 8 ]
 
 
 calc : Model -> Element MyStyles variation Msg
@@ -576,34 +571,123 @@ calc model =
             }
 
 
+viewUnits : Converter -> Element MyStyles variation Msg
+viewUnits converter =
+    Element.row Background
+        [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (MeassurableChanged converter) ]
+        [ Element.text converter.name
+        ]
+
+
+getName : UnitType -> String
+getName unitType =
+    case unitType of
+        SingleUnit unit ->
+            unit.name
+
+        ComboUnit major minor ->
+            major.name ++ " " ++ minor.name
+
+
+viewInputUnit : (UnitType -> Msg) -> UnitType -> Element MyStyles variation Msg
+viewInputUnit msg unit =
+    Element.row Background
+        [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (msg unit) ]
+        [ Element.text (getName unit)
+        ]
+
+
+unitRow : String -> String -> String -> List (Element MyStyles variation Msg)
+unitRow converterName inputName outputName =
+    [ row None [ minHeight (px 75), verticalCenter, paddingLeft 8, Element.Events.onClick (SelectionStateChanged UnitSelection) ] [ Element.text converterName ]
+    , row Background
+        [ minHeight (px 75), verticalCenter ]
+        [ column Background [ minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged InputSelection) ] [ Element.text inputName ]
+        , column Background [ minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged OutputSelection) ] [ Element.text outputName ]
+        ]
+    ]
+
+
+inputOutputRow : ConverterState -> List (Element MyStyles variation Msg)
+inputOutputRow converterState =
+    [ row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ Element.el InputStyle [ width (percent 100), paddingRight 8 ] (Element.text (inputText converterState.input)) ]
+    , row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ outputElement converterState ]
+    ]
+
+
+calc2 : Model -> Element MyStyles variation Msg
+calc2 model =
+    case model.selectionState of
+        UnitSelection ->
+            column None
+                []
+                (List.map viewUnits model.converters)
+
+        InputSelection ->
+            column None
+                []
+                (((unitRow
+                    model.valgtConverter.converter.name
+                    "-"
+                    (outputUnitName model.valgtConverter.output)
+                  )
+                    ++ (inputOutputRow model.valgtConverter)
+                 )
+                    ++ (List.map (viewInputUnit InputUnitChanged) model.valgtConverter.converter.units)
+                )
+
+        OutputSelection ->
+            column None
+                []
+                (((unitRow
+                    model.valgtConverter.converter.name
+                    (inputUnitName model.valgtConverter.input)
+                    "-"
+                  )
+                    ++ (inputOutputRow model.valgtConverter)
+                 )
+                    ++ (List.map (viewInputUnit OutputUnitChanged) model.valgtConverter.converter.units)
+                )
+
+        Conversion ->
+            column None
+                []
+                ((unitRow
+                    model.valgtConverter.converter.name
+                    (inputUnitName model.valgtConverter.input)
+                    (outputUnitName model.valgtConverter.output)
+                 )
+                    ++ (inputOutputRow model.valgtConverter)
+                )
+
+
 calculator : Model -> Html Msg
 calculator model =
     Element.layout stylesheet <|
         -- An el is the most basic element, like a <div>
-        calc model
+        calc2 model
 
 
 
 -- Element.layout renders the elements as html.
 -- Every layout requires a stylesheet.
-
-
-unitSelector : Model -> Html Msg
-unitSelector model =
-    div []
-        (select [ Html.Events.onInput MeassurableChanged ]
-            (option [] [ Html.text "---------" ]
-                :: List.map lagConverterOption model.converters
-            )
-            :: converterView model
-        )
+--
+--unitSelector : Model -> Html Msg
+--unitSelector model =
+--    div []
+--        (select [ Html.Events.onInput MeassurableChanged ]
+--            (option [] [ Html.text "---------" ]
+--                :: List.map lagConverterOption model.converters
+--            )
+--            :: converterView model
+--        )
+--
 
 
 view : Model -> Html Msg
 view model =
     div []
-        [ unitSelector model
-        , calculator model
+        [ calculator model
         ]
 
 
