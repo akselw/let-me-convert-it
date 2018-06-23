@@ -392,14 +392,18 @@ stylesheet =
             , Color.background lightGray
             , Font.size 20 -- all units given as px
             , Font.alignRight
+            , Font.typeface [ Font.sansSerif ]
             ]
         , Style.style ButtonStyle
-            [ Color.text white
-            , Color.background darkGray
+            [ Color.text black
+            , Color.background lightGray
             , Font.size 20 -- all units given as px
+            , Font.center
+            , Font.typeface [ Font.sansSerif ]
             ]
         , Style.style Background
             [ Color.background blue
+            , Font.typeface [ Font.sansSerif ]
             ]
         ]
 
@@ -459,13 +463,13 @@ commaMinorButtonElement : InputState -> Element MyStyles variation Msg
 commaMinorButtonElement inputState =
     case inputState of
         SingleInputState _ _ ->
-            el ButtonStyle [ Element.Events.onClick CommaPressed ] (Element.text ",")
+            buttonElement CommaPressed ","
 
         ComboInputState _ minor input ->
             if input.majorActive then
-                el ButtonStyle [ Element.Events.onClick MinorPressed ] (Element.text ("+ " ++ minor.name))
+                buttonElement MinorPressed ("+ " ++ minor.name)
             else
-                el ButtonStyle [ Element.Events.onClick CommaPressed ] (Element.text ",")
+                buttonElement CommaPressed ","
 
 
 addUnit : Unit -> Float -> String
@@ -648,6 +652,45 @@ inputOutputRow converterState =
     ]
 
 
+buttonElement : Msg -> String -> Element MyStyles variation Msg
+buttonElement msg s =
+    column ButtonStyle [ minWidth (percent 33), verticalCenter, Element.Events.onClick msg ] [ Element.text s ]
+
+
+numberButton : String -> Element MyStyles variation Msg
+numberButton t =
+    buttonElement (NumberPressed t) t
+
+
+numberButtonRow : Int -> Element MyStyles variation Msg
+numberButtonRow startNumber =
+    row InputStyle
+        [ minWidth (percent 100), minHeight (px 100), verticalCenter ]
+        [ startNumber |> toString |> numberButton
+        , startNumber + 1 |> toString |> numberButton
+        , startNumber + 2 |> toString |> numberButton
+        ]
+
+
+buttomButtonRow : InputState -> Element MyStyles variation Msg
+buttomButtonRow inputState =
+    row InputStyle
+        [ minWidth (percent 100), minHeight (px 100), verticalCenter ]
+        [ commaMinorButtonElement inputState
+        , numberButton "0"
+        , buttonElement BackspacePressed "←"
+        ]
+
+
+buttonRow : InputState -> List (Element MyStyles variation Msg)
+buttonRow inputState =
+    [ numberButtonRow 7
+    , numberButtonRow 4
+    , numberButtonRow 1
+    , buttomButtonRow inputState
+    ]
+
+
 calc2 : Model -> Element MyStyles variation Msg
 calc2 model =
     case model.selectionState of
@@ -691,6 +734,7 @@ calc2 model =
                     (outputUnitName model.valgtConverter.output)
                  )
                     ++ (inputOutputRow model.valgtConverter)
+                    ++ (buttonRow model.valgtConverter.input)
                 )
 
 
