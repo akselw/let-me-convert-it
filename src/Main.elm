@@ -1,8 +1,6 @@
 module Main exposing (..)
 
-import Html exposing (..)
-import Html.Attributes exposing (src, disabled, value)
-import Html.Events exposing (..)
+import Html exposing (Html, program)
 import List.Extra exposing (find)
 import Converters exposing (..)
 import Element exposing (..)
@@ -16,10 +14,6 @@ import Round exposing (round)
 
 
 ---- MODEL ----
-
-
-(=>) =
-    (,)
 
 
 type alias Test =
@@ -287,33 +281,6 @@ update msg model =
 ---- VIEW ----
 
 
-lagConverterOption : Converter -> Html Msg
-lagConverterOption converter =
-    option [] [ Html.text converter.name ]
-
-
-lagUnitOption : UnitType -> Html Msg
-lagUnitOption unitType =
-    case unitType of
-        SingleUnit unit ->
-            option [] [ Html.text unit.name ]
-
-        ComboUnit major minor ->
-            option [] [ Html.text (major.name ++ " and " ++ minor.name) ]
-
-
-inputSelect converterValg =
-    div []
-        [--- select [ Html.Events.onInput InputUnitChanged ] (List.map lagUnitOption converterValg.converter.units)
-        ]
-
-
-outputSelect converterValg =
-    div []
-        [--- select [ Html.Events.onInput OutputUnitChanged ] (List.map lagUnitOption converterValg.converter.units)
-        ]
-
-
 convertInputString : Factor -> String -> Float
 convertInputString factor input =
     let
@@ -380,10 +347,7 @@ type MyStyles
     | Background
 
 
-
--- We define our stylesheet
-
-
+stylesheet : StyleSheet MyStyles variation
 stylesheet =
     Style.styleSheet
         [ Style.style None []
@@ -449,8 +413,8 @@ inputUnitName inputState =
             major.name ++ " and " ++ minor.name
 
 
-outputUnitName : UnitType -> String
-outputUnitName output =
+unitTypeName : UnitType -> String
+unitTypeName output =
     case output of
         SingleUnit unit ->
             unit.name
@@ -511,7 +475,7 @@ formatNumber number =
                         primary
 
             _ ->
-                "b"
+                f
 
 
 outputElement : ConverterState -> Element MyStyles variation Msg
@@ -542,72 +506,6 @@ outputElement converterState =
                         |> el InputStyle [ width (percent 100), paddingRight 8 ]
 
 
-calc : Model -> Element MyStyles variation Msg
-calc model =
-    let
-        outputBox =
-            outputElement model.valgtConverter
-    in
-        grid None
-            [ padding 7, spacing 20, width (percent 100), Element.Attributes.center ]
-            { columns = [ fill, fill, fill, fill ]
-            , rows =
-                [ px 50
-                , px 75
-                , px 75
-                , px 75
-                , px 75
-                , px 75
-                , px 75
-                ]
-            , cells =
-                (numberButtons 3)
-                    ++ [ cell
-                            { start = ( 0, 0 )
-                            , width = 2
-                            , height = 1
-                            , content = el InputStyle [ Element.Events.onClick CommaPressed, width (percent 100), Element.Attributes.center ] (Element.text (inputUnitName model.valgtConverter.input))
-                            }
-                       , cell
-                            { start = ( 2, 0 )
-                            , width = 2
-                            , height = 1
-                            , content = el InputStyle [ Element.Events.onClick CommaPressed, width (percent 100), Element.Attributes.center ] (Element.text (outputUnitName model.valgtConverter.output))
-                            }
-                       , cell
-                            { start = ( 0, 1 )
-                            , width = 4
-                            , height = 1
-                            , content = el InputStyle [ Element.Events.onClick CommaPressed, width (percent 100), Element.Attributes.center ] (Element.text (inputText model.valgtConverter.input))
-                            }
-                       , cell
-                            { start = ( 0, 2 )
-                            , width = 4
-                            , height = 1
-                            , content = el InputStyle [ Element.Events.onClick CommaPressed, width (percent 100), Element.Attributes.center ] outputBox
-                            }
-                       , cell
-                            { start = ( 0, 6 )
-                            , width = 1
-                            , height = 1
-                            , content = commaMinorButtonElement model.valgtConverter.input
-                            }
-                       , cell
-                            { start = ( 1, 6 )
-                            , width = 1
-                            , height = 1
-                            , content = el ButtonStyle [ Element.Events.onClick (NumberPressed "0") ] (Element.text "0")
-                            }
-                       , cell
-                            { start = ( 2, 6 )
-                            , width = 1
-                            , height = 1
-                            , content = el ButtonStyle [ Element.Events.onClick BackspacePressed ] (Element.text "<-")
-                            }
-                       ]
-            }
-
-
 viewUnits : Converter -> Element MyStyles variation Msg
 viewUnits converter =
     Element.row Background
@@ -616,21 +514,11 @@ viewUnits converter =
         ]
 
 
-getName : UnitType -> String
-getName unitType =
-    case unitType of
-        SingleUnit unit ->
-            unit.name
-
-        ComboUnit major minor ->
-            major.name ++ " " ++ minor.name
-
-
 viewInputUnit : (UnitType -> Msg) -> UnitType -> Element MyStyles variation Msg
 viewInputUnit msg unit =
     Element.row Background
         [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (msg unit) ]
-        [ Element.text (getName unit)
+        [ Element.text (unitTypeName unit)
         ]
 
 
@@ -705,7 +593,7 @@ calc2 model =
                 (((unitRow
                     model.valgtConverter.converter.name
                     "-"
-                    (outputUnitName model.valgtConverter.output)
+                    (unitTypeName model.valgtConverter.output)
                   )
                     ++ (inputOutputRow model.valgtConverter)
                  )
@@ -731,7 +619,7 @@ calc2 model =
                 ((unitRow
                     model.valgtConverter.converter.name
                     (inputUnitName model.valgtConverter.input)
-                    (outputUnitName model.valgtConverter.output)
+                    (unitTypeName model.valgtConverter.output)
                  )
                     ++ (inputOutputRow model.valgtConverter)
                     ++ (buttonRow model.valgtConverter.input)
@@ -741,47 +629,12 @@ calc2 model =
 calculator : Model -> Html Msg
 calculator model =
     Element.layout stylesheet <|
-        -- An el is the most basic element, like a <div>
         calc2 model
-
-
-
--- Element.layout renders the elements as html.
--- Every layout requires a stylesheet.
---
---unitSelector : Model -> Html Msg
---unitSelector model =
---    div []
---        (select [ Html.Events.onInput MeassurableChanged ]
---            (option [] [ Html.text "---------" ]
---                :: List.map lagConverterOption model.converters
---            )
---            :: converterView model
---        )
---
 
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ calculator model
-        ]
-
-
-converterView : Model -> List (Html Msg)
-converterView model =
-    [ inputSelect model.valgtConverter
-    , outputSelect model.valgtConverter
-    ]
-
-
-outputDisplay : ConverterState -> Model -> Html Msg
-outputDisplay converterState model =
-    let
-        conversionResult =
-            makeConversion converterState
-    in
-        div [] [ input [ disabled True, value (toString conversionResult) ] [] ]
+    calculator model
 
 
 
