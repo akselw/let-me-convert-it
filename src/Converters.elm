@@ -1,28 +1,7 @@
 module Converters exposing (..)
 
+import Types exposing (..)
 
-type alias Converter =
-    { name : String
-    , units : List UnitType
-    , defaultInput : UnitType
-    , defaultOutput : UnitType
-    }
-
-
-type alias Factor =
-    Float
-
-
-type alias Unit =
-    { factor : Factor
-    , name : String
-    , abbreviation : String
-    }
-
-
-type UnitType
-    = SingleUnit Unit
-    | ComboUnit Unit Unit
 
 
 converters : List Converter

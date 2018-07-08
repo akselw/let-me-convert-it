@@ -1,67 +1,20 @@
 module Main exposing (..)
 
 import Html exposing (Html, program)
-import List.Extra exposing (find)
-import Converters exposing (..)
 import Element exposing (..)
 import Element.Attributes exposing (..)
 import Element.Events exposing (..)
 import Style exposing (..)
 import Style.Color as Color exposing (text)
 import Style.Font as Font exposing (..)
+import Style.Border as Border exposing (..)
 import Color exposing (..)
 import Round exposing (round)
+import Converters exposing (..)
+import Types exposing (..)
 
 
 ---- MODEL ----
-
-
-type alias Test =
-    {}
-
-
-type alias Model =
-    { converters : List Converter
-    , selectionState : SelectionState
-    , valgtConverter : ConverterState
-    }
-
-
-type SelectionState
-    = Conversion
-    | UnitSelection
-    | InputSelection
-    | OutputSelection
-
-
-type alias ComboInput =
-    { major : String
-    , minor : String
-    , majorActive : Bool
-    }
-
-
-type InputState
-    = SingleInputState Unit String
-    | ComboInputState Unit Unit ComboInput
-
-
-type alias ConverterState =
-    { converter : Converter
-    , input : InputState
-    , output : UnitType
-    }
-
-
-erTall : (Int -> Int) -> (String -> Result String String)
-erTall func =
-    \inp ->
-        case String.toInt inp of
-            Ok n ->
-                Ok (toString (func n))
-
-            Err e ->
-                Err e
 
 
 init : ( Model, Cmd Msg )
@@ -91,50 +44,6 @@ type Msg
     | BackspacePressed
     | MinorPressed
     | SelectionStateChanged SelectionState
-
-
-sameUnitName : String -> (UnitType -> Bool)
-sameUnitName valgtNavn =
-    \unitType ->
-        case unitType of
-            SingleUnit unit ->
-                valgtNavn == unit.name
-
-            ComboUnit major minor ->
-                valgtNavn == (major.name ++ " and " ++ minor.name)
-
-
-findUnit : String -> ConverterState -> Maybe UnitType
-findUnit valgtNavn converterState =
-    find (sameUnitName valgtNavn) converterState.converter.units
-
-
-createComboTuple : String -> ( Maybe String, Maybe String ) -> ( Maybe String, Maybe String )
-createComboTuple inputString tuple =
-    let
-        minorInput =
-            Tuple.second tuple
-    in
-        if inputString == "" then
-            ( Nothing, minorInput )
-        else
-            ( Just inputString, minorInput )
-
-
-
---updatedMinorInput : String -> ComboDefinition -> ( Maybe String, Maybe String ) -> InputState
---updatedMinorInput inputString definition tuple =
---    let
---        inputFelt =
---            if inputString == "" then
---                Nothing
---            else
---                Just inputString
---
---        newTuple =
---            ( Tuple.first tuple, inputFelt )
---    in
---        ComboState definition newTuple
 
 
 createNewInputState : UnitType -> ComboInput -> InputState
@@ -345,6 +254,7 @@ type MyStyles
     | InputStyle
     | ButtonStyle
     | Background
+    | UnitStyle
 
 
 stylesheet : StyleSheet MyStyles variation
@@ -364,30 +274,19 @@ stylesheet =
             , Font.size 20 -- all units given as px
             , Font.center
             , Font.typeface [ Font.sansSerif ]
+            , Border.solid
+            , Border.all 1
+            , Color.border darkGray
+            , Border.rounded 16
             ]
         , Style.style Background
-            [ Color.background blue
+            [ Color.background white
+            ]
+        , Style.style UnitStyle
+            [ Color.background lightGray
             , Font.typeface [ Font.sansSerif ]
             ]
         ]
-
-
-numberButtons : Int -> List (OnGrid (Element MyStyles variation Msg))
-numberButtons offset =
-    List.map
-        (\num ->
-            let
-                numberString =
-                    toString num
-            in
-                cell
-                    { start = ( (num - 1) % 3, (2 - ((num - 1) // 3)) + offset )
-                    , width = 1
-                    , height = 1
-                    , content = el ButtonStyle [ Element.Events.onClick (NumberPressed numberString), width fill, Element.Attributes.center ] (Element.text numberString)
-                    }
-        )
-        [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
 
 
 inputText : InputState -> String
@@ -446,11 +345,23 @@ addUnitToTuple majorUnit minorUnit ( major, minor ) =
     (addUnit majorUnit major) ++ " " ++ (addUnit minorUnit minor)
 
 
+decimalFormatLength : Float -> Int
+decimalFormatLength number =
+    let
+        intLength =
+            floor number |> toString |> String.length
+    in
+        if intLength <= 9 then
+            9 - intLength
+        else
+            0
+
+
 formatNumber : Float -> String
 formatNumber number =
     let
         f =
-            Round.round 3 number
+            Round.round (decimalFormatLength number) number
 
         s =
             String.split "." f
@@ -481,6 +392,7 @@ formatNumber number =
 outputElement : ConverterState -> Element MyStyles variation Msg
 outputElement converterState =
     let
+        conversionResult : ( Float, Float )
         conversionResult =
             makeConversion converterState
     in
@@ -524,11 +436,11 @@ viewInputUnit msg unit =
 
 unitRow : String -> String -> String -> List (Element MyStyles variation Msg)
 unitRow converterName inputName outputName =
-    [ row None [ minHeight (px 75), verticalCenter, paddingLeft 8, Element.Events.onClick (SelectionStateChanged UnitSelection) ] [ Element.text converterName ]
+    [ row UnitStyle [ minHeight (px 75), verticalCenter, paddingLeft 8, Element.Events.onClick (SelectionStateChanged UnitSelection) ] [ Element.text converterName ]
     , row Background
-        [ minHeight (px 75), verticalCenter ]
-        [ column Background [ minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged InputSelection) ] [ Element.text inputName ]
-        , column Background [ minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged OutputSelection) ] [ Element.text outputName ]
+        []
+        [ column UnitStyle [ minHeight (px 75), verticalCenter, minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged InputSelection) ] [ Element.text inputName ]
+        , column UnitStyle [ minHeight (px 75), verticalCenter, minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged OutputSelection) ] [ Element.text outputName ]
         ]
     ]
 
@@ -542,7 +454,7 @@ inputOutputRow converterState =
 
 buttonElement : Msg -> String -> Element MyStyles variation Msg
 buttonElement msg s =
-    column ButtonStyle [ minWidth (percent 33), verticalCenter, Element.Events.onClick msg ] [ Element.text s ]
+    column ButtonStyle [ minWidth (percent 30), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ] [ Element.text s ]
 
 
 numberButton : String -> Element MyStyles variation Msg
@@ -552,8 +464,8 @@ numberButton t =
 
 numberButtonRow : Int -> Element MyStyles variation Msg
 numberButtonRow startNumber =
-    row InputStyle
-        [ minWidth (percent 100), minHeight (px 100), verticalCenter ]
+    row Background
+        [ minWidth (percent 100), minHeight (px 100), verticalCenter, spacing 8 ]
         [ startNumber |> toString |> numberButton
         , startNumber + 1 |> toString |> numberButton
         , startNumber + 2 |> toString |> numberButton
@@ -562,8 +474,8 @@ numberButtonRow startNumber =
 
 buttomButtonRow : InputState -> Element MyStyles variation Msg
 buttomButtonRow inputState =
-    row InputStyle
-        [ minWidth (percent 100), minHeight (px 100), verticalCenter ]
+    row Background
+        [ minWidth (percent 100), minHeight (px 100), verticalCenter, spacing 8 ]
         [ commaMinorButtonElement inputState
         , numberButton "0"
         , buttonElement BackspacePressed "←"
@@ -615,7 +527,7 @@ calc2 model =
 
         Conversion ->
             column None
-                []
+                [ spacing 8 ]
                 ((unitRow
                     model.valgtConverter.converter.name
                     (inputUnitName model.valgtConverter.input)
