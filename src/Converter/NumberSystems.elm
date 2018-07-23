@@ -1,4 +1,4 @@
-module NumberSystems
+module Converter.NumberSystems
     exposing
         ( RomanDigit(..)
         , DecimalDigit(..)

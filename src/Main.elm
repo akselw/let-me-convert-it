@@ -10,21 +10,29 @@ import Style.Font as Font exposing (..)
 import Style.Border as Border exposing (..)
 import Color exposing (..)
 import Round exposing (round)
-import Converters exposing (..)
-import Types exposing (..)
+import Converter.Converter exposing (..)
 
 
----- MODEL ----
+type alias Model =
+    { selectionState : SelectionState
+    , converterState : ConverterState
+    }
+
+
+type SelectionState
+    = Conversion
+    | UnitSelection
+    | InputSelection
+    | OutputSelection
+
+
+
+-- MODEL ----
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { converters = converters
-      , valgtConverter =
-            { converter = distance
-            , input = SingleInputState Converters.meter "1"
-            , output = ComboUnit Converters.feetDefinition Converters.inchDefinition
-            }
+    ( { converterState = Converter.Converter.init
       , selectionState = Conversion
       }
     , Cmd.none
@@ -36,212 +44,47 @@ init =
 
 
 type Msg
-    = MeassurableChanged Converter
-    | InputUnitChanged UnitType
-    | OutputUnitChanged UnitType
-    | NumberPressed String
-    | CommaPressed
+    = ConverterChanged String
+    | InputUnitChanged String
+    | OutputUnitChanged String
+    | ValueButtonPressed Value
     | BackspacePressed
-    | MinorPressed
     | SelectionStateChanged SelectionState
-
-
-createNewInputState : UnitType -> ComboInput -> InputState
-createNewInputState newUnit state =
-    case newUnit of
-        SingleUnit unit ->
-            SingleInputState unit state.major
-
-        ComboUnit majorUnit minorUnit ->
-            ComboInputState majorUnit minorUnit state
-
-
-newInputState : UnitType -> InputState -> InputState
-newInputState newUnit oldState =
-    case oldState of
-        SingleInputState unit input ->
-            createNewInputState newUnit { major = input, minor = "0", majorActive = True }
-
-        ComboInputState majorUnit minorUnit state ->
-            createNewInputState newUnit state
-
-
-updateInputNumberPress : String -> String -> String
-updateInputNumberPress oldInput numberPressed =
-    if oldInput == "0" then
-        numberPressed
-    else
-        oldInput ++ numberPressed
-
-
-numberPress : String -> InputState -> InputState
-numberPress numberString inputState =
-    case inputState of
-        SingleInputState unit input ->
-            SingleInputState unit (updateInputNumberPress input numberString)
-
-        ComboInputState major minor input ->
-            if input.majorActive then
-                ComboInputState major minor { input | major = (updateInputNumberPress input.major numberString) }
-            else
-                ComboInputState major minor { input | minor = (updateInputNumberPress input.minor numberString) }
-
-
-updateInputCommaPress : String -> String
-updateInputCommaPress input =
-    if String.contains "." input then
-        input
-    else
-        input ++ "."
-
-
-commaPress : InputState -> InputState
-commaPress state =
-    case state of
-        SingleInputState unit input ->
-            SingleInputState unit (updateInputCommaPress input)
-
-        ComboInputState major minor input ->
-            ComboInputState major minor { input | minor = (updateInputCommaPress input.minor) }
-
-
-updateInputBackspacePress : String -> String
-updateInputBackspacePress input =
-    if String.length input == 1 then
-        "0"
-    else
-        String.dropRight 1 input
-
-
-backspacePress : InputState -> InputState
-backspacePress state =
-    case state of
-        SingleInputState unit input ->
-            SingleInputState unit (updateInputBackspacePress input)
-
-        ComboInputState major minor input ->
-            if input.majorActive then
-                ComboInputState major minor { input | major = (updateInputBackspacePress input.major) }
-            else if input.minor == "0" then
-                ComboInputState major
-                    minor
-                    { input
-                        | minor = (updateInputBackspacePress input.minor)
-                        , majorActive = True
-                    }
-            else
-                ComboInputState major minor { input | minor = (updateInputBackspacePress input.minor) }
 
 
 update : Msg -> Model -> Model
 update msg model =
-    let
-        converterState =
-            model.valgtConverter
-    in
-        case msg of
-            MeassurableChanged converter ->
-                { model
-                    | valgtConverter =
-                        { converter = converter
-                        , input = newInputState converter.defaultInput converterState.input
-                        , output = converter.defaultOutput
-                        }
-                    , selectionState = Conversion
-                }
+    case msg of
+        ConverterChanged name ->
+            { model
+                | converterState = selectConverter model.converterState name
+                , selectionState = Conversion
+            }
 
-            InputUnitChanged input ->
-                { model
-                    | valgtConverter =
-                        { converterState
-                            | input = (newInputState input model.valgtConverter.input)
-                        }
-                    , selectionState = Conversion
-                }
+        InputUnitChanged name ->
+            { model
+                | converterState = selectInputUnit model.converterState name
+                , selectionState = Conversion
+            }
 
-            OutputUnitChanged output ->
-                { model
-                    | valgtConverter = { converterState | output = output }
-                    , selectionState = Conversion
-                }
+        OutputUnitChanged name ->
+            { model
+                | converterState = selectOutputUnit model.converterState name
+                , selectionState = Conversion
+            }
 
-            SelectionStateChanged state ->
-                { model | selectionState = state }
+        SelectionStateChanged state ->
+            { model | selectionState = state }
 
-            NumberPressed numberString ->
-                { model | valgtConverter = { converterState | input = (numberPress numberString converterState.input) } }
+        ValueButtonPressed value ->
+            { model | converterState = addToInput model.converterState value }
 
-            CommaPressed ->
-                { model | valgtConverter = { converterState | input = (commaPress converterState.input) } }
-
-            BackspacePressed ->
-                { model | valgtConverter = { converterState | input = (backspacePress converterState.input) } }
-
-            MinorPressed ->
-                case converterState.input of
-                    SingleInputState _ _ ->
-                        model
-
-                    ComboInputState major minor inputState ->
-                        { model | valgtConverter = { converterState | input = ComboInputState major minor { inputState | majorActive = False } } }
+        BackspacePressed ->
+            { model | converterState = deleteFromInput model.converterState }
 
 
 
 ---- VIEW ----
-
-
-convertInputString : Factor -> String -> Float
-convertInputString factor input =
-    let
-        inputRes =
-            String.toFloat input
-    in
-        case inputRes of
-            Ok i ->
-                i * factor
-
-            Err s ->
-                -1000
-
-
-convertFromInput : InputState -> Float
-convertFromInput inputState =
-    case inputState of
-        SingleInputState unit input ->
-            convertInputString unit.factor input
-
-        ComboInputState majorUnit minorUnit { major, minor } ->
-            (convertInputString majorUnit.factor major) + (convertInputString minorUnit.factor minor)
-
-
-convertToOutput : UnitType -> Float -> ( Float, Float )
-convertToOutput unitType n =
-    case unitType of
-        SingleUnit unit ->
-            ( n / unit.factor, 0 )
-
-        ComboUnit majorUnit minorUnit ->
-            let
-                majorRaw =
-                    n / majorUnit.factor
-
-                major =
-                    majorRaw |> floor |> toFloat
-
-                majorRest =
-                    majorRaw - major
-
-                minor =
-                    majorRest * majorUnit.factor / minorUnit.factor
-            in
-                ( major, minor )
-
-
-makeConversion : ConverterState -> ( Float, Float )
-makeConversion converterState =
-    converterState.input
-        |> convertFromInput
-        |> convertToOutput converterState.output
 
 
 removeFormatting : String -> String
@@ -289,67 +132,11 @@ stylesheet =
         ]
 
 
-inputText : InputState -> String
-inputText inputState =
-    case inputState of
-        SingleInputState unit input ->
-            input ++ " " ++ unit.abbreviation
-
-        ComboInputState majorUnit minorUnit { major, minor, majorActive } ->
-            if majorActive then
-                major ++ " " ++ majorUnit.abbreviation
-            else
-                major ++ " " ++ majorUnit.abbreviation ++ " + " ++ minor ++ " " ++ minorUnit.abbreviation
-
-
-inputUnitName : InputState -> String
-inputUnitName inputState =
-    case inputState of
-        SingleInputState unit _ ->
-            unit.name
-
-        ComboInputState major minor _ ->
-            major.name ++ " and " ++ minor.name
-
-
-unitTypeName : UnitType -> String
-unitTypeName output =
-    case output of
-        SingleUnit unit ->
-            unit.name
-
-        ComboUnit major minor ->
-            major.name ++ " and " ++ minor.name
-
-
-commaMinorButtonElement : InputState -> Element MyStyles variation Msg
-commaMinorButtonElement inputState =
-    case inputState of
-        SingleInputState _ _ ->
-            buttonElement CommaPressed ","
-
-        ComboInputState _ minor input ->
-            if input.majorActive then
-                buttonElement MinorPressed ("+ " ++ minor.name)
-            else
-                buttonElement CommaPressed ","
-
-
-addUnit : Unit -> Float -> String
-addUnit unit n =
-    (formatNumber n) ++ " " ++ unit.abbreviation
-
-
-addUnitToTuple : Unit -> Unit -> ( Float, Float ) -> String
-addUnitToTuple majorUnit minorUnit ( major, minor ) =
-    (addUnit majorUnit major) ++ " " ++ (addUnit minorUnit minor)
-
-
 decimalFormatLength : Float -> Int
 decimalFormatLength number =
     let
         intLength =
-            floor number |> toString |> String.length
+            floor number |> Basics.toString |> String.length
     in
         if intLength <= 9 then
             9 - intLength
@@ -389,48 +176,19 @@ formatNumber number =
                 f
 
 
-outputElement : ConverterState -> Element MyStyles variation Msg
-outputElement converterState =
-    let
-        conversionResult : ( Float, Float )
-        conversionResult =
-            makeConversion converterState
-    in
-        case converterState.output of
-            SingleUnit unit ->
-                conversionResult
-                    |> Tuple.first
-                    |> addUnit unit
-                    |> Element.text
-                    |> el InputStyle [ width (percent 100), paddingRight 8 ]
-
-            ComboUnit majorUnit minorUnit ->
-                if (Tuple.second conversionResult == 0) then
-                    conversionResult
-                        |> Tuple.first
-                        |> addUnit majorUnit
-                        |> Element.text
-                        |> el InputStyle [ width (percent 100), paddingRight 8 ]
-                else
-                    conversionResult
-                        |> addUnitToTuple majorUnit minorUnit
-                        |> Element.text
-                        |> el InputStyle [ width (percent 100), paddingRight 8 ]
-
-
-viewUnits : Converter -> Element MyStyles variation Msg
-viewUnits converter =
-    Element.row Background
-        [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (MeassurableChanged converter) ]
-        [ Element.text converter.name
+viewUnits : String -> Element MyStyles variation Msg
+viewUnits name =
+    Element.row UnitStyle
+        [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (ConverterChanged name) ]
+        [ Element.text name
         ]
 
 
-viewInputUnit : (UnitType -> Msg) -> UnitType -> Element MyStyles variation Msg
+viewInputUnit : (String -> Msg) -> String -> Element MyStyles variation Msg
 viewInputUnit msg unit =
     Element.row Background
         [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (msg unit) ]
-        [ Element.text (unitTypeName unit)
+        [ Element.text unit
         ]
 
 
@@ -445,10 +203,51 @@ unitRow converterName inputName outputName =
     ]
 
 
+outputFieldToString : OutputField -> String
+outputFieldToString field =
+    case field of
+        SingleFloatOutputField f s ->
+            let
+                number =
+                    formatNumber f
+            in
+                number ++ " " ++ s
+
+        DoubleFloatOutputField f1 f2 s1 s2 ->
+            let
+                major =
+                    formatNumber f1
+
+                minor =
+                    formatNumber f2
+            in
+                String.join " " [ major, s1, minor, s2 ]
+
+
+outputField : OutputField -> Element MyStyles variation Msg
+outputField field =
+    row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ Element.el InputStyle [ width (percent 100), paddingRight 8 ] (Element.text (outputFieldToString field)) ]
+
+
+inputFieldToString : InputField -> String
+inputFieldToString input =
+    case input of
+        SingleStringOutputField value unit ->
+            String.join " " [ value, unit ]
+
+        DoubleStringOutputField major minor majorUnit minorUnit ->
+            String.join " " [ major, majorUnit, minor, minorUnit ]
+
+
+inputField : InputField -> Element MyStyles variation Msg
+inputField field =
+    row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ Element.el InputStyle [ width (percent 100), paddingRight 8 ] (Element.text (inputFieldToString field)) ]
+
+
 inputOutputRow : ConverterState -> List (Element MyStyles variation Msg)
 inputOutputRow converterState =
-    [ row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ Element.el InputStyle [ width (percent 100), paddingRight 8 ] (Element.text (inputText converterState.input)) ]
-    , row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ outputElement converterState ]
+    [ inputField (input converterState)
+    , outputField (output converterState)
     ]
 
 
@@ -457,84 +256,89 @@ buttonElement msg s =
     column ButtonStyle [ minWidth (percent 30), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ] [ Element.text s ]
 
 
-numberButton : String -> Element MyStyles variation Msg
-numberButton t =
-    buttonElement (NumberPressed t) t
+numberButton : Value -> Element MyStyles variation Msg
+numberButton value =
+    value
+        |> Converter.Converter.toString
+        |> buttonElement (ValueButtonPressed value)
 
 
-numberButtonRow : Int -> Element MyStyles variation Msg
-numberButtonRow startNumber =
+numberButtonRow : Value -> Value -> Value -> Element MyStyles variation Msg
+numberButtonRow first second third =
     row Background
         [ minWidth (percent 100), minHeight (px 100), verticalCenter, spacing 8 ]
-        [ startNumber |> toString |> numberButton
-        , startNumber + 1 |> toString |> numberButton
-        , startNumber + 2 |> toString |> numberButton
+        [ numberButton first
+        , numberButton second
+        , numberButton third
         ]
 
 
-buttomButtonRow : InputState -> Element MyStyles variation Msg
-buttomButtonRow inputState =
+buttomButtonRow : Value -> Value -> Element MyStyles variation Msg
+buttomButtonRow comma zero =
     row Background
         [ minWidth (percent 100), minHeight (px 100), verticalCenter, spacing 8 ]
-        [ commaMinorButtonElement inputState
-        , numberButton "0"
+        [ numberButton comma
+        , numberButton zero
         , buttonElement BackspacePressed "←"
         ]
 
 
-buttonRow : InputState -> List (Element MyStyles variation Msg)
-buttonRow inputState =
-    [ numberButtonRow 7
-    , numberButtonRow 4
-    , numberButtonRow 1
-    , buttomButtonRow inputState
-    ]
+valueButtons : ConverterState -> List (Element MyStyles variation Msg)
+valueButtons converterState =
+    case values converterState of
+        FloatValues valueDict ->
+            [ numberButtonRow valueDict.seven valueDict.eight valueDict.nine
+            , numberButtonRow valueDict.four valueDict.five valueDict.six
+            , numberButtonRow valueDict.one valueDict.two valueDict.three
+            , buttomButtonRow valueDict.transform valueDict.zero
+            ]
 
 
 calc2 : Model -> Element MyStyles variation Msg
-calc2 model =
-    case model.selectionState of
+calc2 { selectionState, converterState } =
+    case selectionState of
         UnitSelection ->
             column None
                 []
-                (List.map viewUnits model.converters)
+                (Converter.Converter.mapConverters viewUnits converterState)
 
         InputSelection ->
             column None
                 []
                 (((unitRow
-                    model.valgtConverter.converter.name
+                    (converterName converterState)
                     "-"
-                    (unitTypeName model.valgtConverter.output)
+                    (outputName converterState)
                   )
-                    ++ (inputOutputRow model.valgtConverter)
+                    ++ (inputOutputRow converterState)
                  )
-                    ++ (List.map (viewInputUnit InputUnitChanged) model.valgtConverter.converter.units)
+                    ++ (mapInputUnits (viewInputUnit InputUnitChanged) converterState)
                 )
 
         OutputSelection ->
             column None
                 []
                 (((unitRow
-                    model.valgtConverter.converter.name
-                    (inputUnitName model.valgtConverter.input)
+                    (converterName converterState)
+                    (inputName converterState)
                     "-"
                   )
-                    ++ (inputOutputRow model.valgtConverter)
+                    ++ (inputOutputRow converterState)
                  )
-                    ++ (List.map (viewInputUnit OutputUnitChanged) model.valgtConverter.converter.units)
+                    ++ (mapOutputUnits (viewInputUnit OutputUnitChanged) converterState)
                 )
 
         Conversion ->
             column None
-                [ spacing 8 ]
-                ((unitRow
-                    model.valgtConverter.converter.name
-                    (inputUnitName model.valgtConverter.input)
-                    (unitTypeName model.valgtConverter.output)
+                []
+                (((unitRow
+                    (converterName converterState)
+                    (inputName converterState)
+                    (outputName converterState)
+                  )
+                    ++ (inputOutputRow converterState)
+                    ++ (valueButtons converterState)
                  )
-                    ++ (inputOutputRow model.valgtConverter)
-                    ++ (buttonRow model.valgtConverter.input)
                 )
 
 
