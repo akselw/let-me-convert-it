@@ -21,9 +21,15 @@ type alias Model =
 
 type SelectionState
     = Conversion
-    | UnitSelection
+    | ConverterSelection
     | InputSelection
     | OutputSelection
+
+
+type ConverterMenuState
+    = ConversionSelectionMenu String String String
+    | InputSelectionMenu String String
+    | OutputSelectionMenu String String
 
 
 
@@ -176,8 +182,8 @@ formatNumber number =
                 f
 
 
-viewUnits : String -> Element MyStyles variation Msg
-viewUnits name =
+viewConverter : String -> Element MyStyles variation Msg
+viewConverter name =
     Element.row UnitStyle
         [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (ConverterChanged name) ]
         [ Element.text name
@@ -192,15 +198,33 @@ viewInputUnit msg unit =
         ]
 
 
-unitRow : String -> String -> String -> List (Element MyStyles variation Msg)
+unitRow : String -> String -> String -> Element MyStyles variation Msg
 unitRow converterName inputName outputName =
-    [ row UnitStyle [ minHeight (px 75), verticalCenter, paddingLeft 8, Element.Events.onClick (SelectionStateChanged UnitSelection) ] [ Element.text converterName ]
-    , row Background
+    row None
         []
-        [ column UnitStyle [ minHeight (px 75), verticalCenter, minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged InputSelection) ] [ Element.text inputName ]
-        , column UnitStyle [ minHeight (px 75), verticalCenter, minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged OutputSelection) ] [ Element.text outputName ]
+        [ column None
+            [ width fill ]
+            [ row UnitStyle [ minHeight (px 75), verticalCenter, paddingLeft 8, Element.Events.onClick (SelectionStateChanged ConverterSelection) ] [ Element.text converterName ]
+            , row Background
+                []
+                [ column UnitStyle [ minHeight (px 75), verticalCenter, minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged InputSelection) ] [ Element.text inputName ]
+                , column UnitStyle [ minHeight (px 75), verticalCenter, minWidth (percent 50), paddingLeft 8, Element.Events.onClick (SelectionStateChanged OutputSelection) ] [ Element.text outputName ]
+                ]
+            ]
         ]
-    ]
+
+
+converterSelectionMenu : ConverterMenuState -> Element MyStyles variation Msg
+converterSelectionMenu state =
+    case state of
+        ConversionSelectionMenu converter input output ->
+            unitRow converter input output
+
+        InputSelectionMenu converter output ->
+            unitRow converter "-" output
+
+        OutputSelectionMenu converter input ->
+            unitRow converter input "-"
 
 
 outputFieldToString : OutputField -> String
@@ -244,11 +268,16 @@ inputField field =
     row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ Element.el InputStyle [ width (percent 100), paddingRight 8 ] (Element.text (inputFieldToString field)) ]
 
 
-inputOutputRow : ConverterState -> List (Element MyStyles variation Msg)
+inputOutputRow : ConverterState -> Element MyStyles variation Msg
 inputOutputRow converterState =
-    [ inputField (input converterState)
-    , outputField (output converterState)
-    ]
+    row None
+        []
+        [ column None
+            [ width fill ]
+            [ inputField (input converterState)
+            , outputField (output converterState)
+            ]
+        ]
 
 
 buttonElement : Msg -> String -> Element MyStyles variation Msg
@@ -266,7 +295,7 @@ numberButton value =
 numberButtonRow : Value -> Value -> Value -> Element MyStyles variation Msg
 numberButtonRow first second third =
     row Background
-        [ minWidth (percent 100), minHeight (px 100), verticalCenter, spacing 8 ]
+        [ width fill, minWidth (percent 100), minHeight (px 100), verticalCenter, spacing 8 ]
         [ numberButton first
         , numberButton second
         , numberButton third
@@ -283,74 +312,104 @@ buttomButtonRow comma zero =
         ]
 
 
-valueButtons : ConverterState -> List (Element MyStyles variation Msg)
+valueButtons : ConverterState -> Element MyStyles variation Msg
 valueButtons converterState =
     case values converterState of
         FloatValues valueDict ->
-            [ numberButtonRow valueDict.seven valueDict.eight valueDict.nine
-            , numberButtonRow valueDict.four valueDict.five valueDict.six
-            , numberButtonRow valueDict.one valueDict.two valueDict.three
-            , buttomButtonRow valueDict.transform valueDict.zero
-            ]
-
-
-calc2 : Model -> Element MyStyles variation Msg
-calc2 { selectionState, converterState } =
-    case selectionState of
-        UnitSelection ->
-            column None
+            row None
                 []
-                (Converter.Converter.mapConverters viewUnits converterState)
+                [ column None
+                    [ width fill ]
+                    [ numberButtonRow valueDict.seven valueDict.eight valueDict.nine
+                    , numberButtonRow valueDict.four valueDict.five valueDict.six
+                    , numberButtonRow valueDict.one valueDict.two valueDict.three
+                    , buttomButtonRow valueDict.transform valueDict.zero
+                    ]
+                ]
+
+
+viewConverterSelection : ConverterState -> Element MyStyles variation Msg
+viewConverterSelection converterState =
+    column None
+        [ width fill ]
+        (Converter.Converter.mapConverters viewConverter converterState)
+
+
+viewInputs : ConverterState -> (String -> Element MyStyles variation Msg) -> Element MyStyles variation Msg
+viewInputs converterState f =
+    row None
+        []
+        [ mapInputUnits f converterState
+            |> column None []
+        ]
+
+
+viewOutputs : ConverterState -> (String -> Element MyStyles variation Msg) -> Element MyStyles variation Msg
+viewOutputs converterState f =
+    row None
+        []
+        [ mapOutputUnits f converterState
+            |> column None []
+        ]
+
+
+viewInputSelection : ConverterState -> Element MyStyles variation Msg
+viewInputSelection converterState =
+    column None
+        [ width fill ]
+        [ InputSelectionMenu (converterName converterState) (outputName converterState)
+            |> converterSelectionMenu
+        , inputOutputRow converterState
+        , viewInputUnit InputUnitChanged
+            |> viewOutputs converterState
+        ]
+
+
+viewOutputSelection : ConverterState -> Element MyStyles variation Msg
+viewOutputSelection converterState =
+    column None
+        [ width fill ]
+        [ OutputSelectionMenu (converterName converterState) (inputName converterState)
+            |> converterSelectionMenu
+        , inputOutputRow converterState
+        , viewInputUnit OutputUnitChanged
+            |> viewOutputs converterState
+        ]
+
+
+viewConversion : ConverterState -> Element MyStyles variation Msg
+viewConversion converterState =
+    column None
+        [ width fill ]
+        [ ConversionSelectionMenu (converterName converterState)
+            (inputName converterState)
+            (outputName converterState)
+            |> converterSelectionMenu
+        , inputOutputRow converterState
+        , valueButtons converterState
+        ]
+
+
+calculator : Model -> Element MyStyles variation Msg
+calculator { selectionState, converterState } =
+    case selectionState of
+        ConverterSelection ->
+            viewConverterSelection converterState
 
         InputSelection ->
-            column None
-                []
-                (((unitRow
-                    (converterName converterState)
-                    "-"
-                    (outputName converterState)
-                  )
-                    ++ (inputOutputRow converterState)
-                 )
-                    ++ (mapInputUnits (viewInputUnit InputUnitChanged) converterState)
-                )
+            viewInputSelection converterState
 
         OutputSelection ->
-            column None
-                []
-                (((unitRow
-                    (converterName converterState)
-                    (inputName converterState)
-                    "-"
-                  )
-                    ++ (inputOutputRow converterState)
-                 )
-                    ++ (mapOutputUnits (viewInputUnit OutputUnitChanged) converterState)
-                )
+            viewOutputSelection converterState
 
         Conversion ->
-            column None
-                []
-                (((unitRow
-                    (converterName converterState)
-                    (inputName converterState)
-                    (outputName converterState)
-                  )
-                    ++ (inputOutputRow converterState)
-                    ++ (valueButtons converterState)
-                 )
-                )
-
-
-calculator : Model -> Html Msg
-calculator model =
-    Element.layout stylesheet <|
-        calc2 model
+            viewConversion converterState
 
 
 view : Model -> Html Msg
 view model =
-    calculator model
+    Element.layout stylesheet <|
+        calculator model
 
 
 
