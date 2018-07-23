@@ -9,6 +9,8 @@ module Converter.UnitConverters
         , addNumber
         , backspace
         , setMajorState
+        , selectNewInputUnit
+        , selectNewOutputUnit
         )
 
 import SelectList exposing (..)
@@ -109,7 +111,7 @@ inputName inputState =
             def.name
 
         ComboInputState majorDef minorDef _ ->
-            majorDef.name ++ " - " ++ minorDef.name
+            majorDef.name ++ " and " ++ minorDef.name
 
 
 outputName : UnitType -> String
@@ -206,14 +208,6 @@ inchDefinition =
     }
 
 
-meter : UnitDefinition
-meter =
-    { factor = 1
-    , name = "meter"
-    , abbreviation = "m"
-    }
-
-
 toInputState : UnitType -> InputUnitState
 toInputState unit =
     case unit of
@@ -229,19 +223,44 @@ toInputState unit =
                 }
 
 
+selectNewInputUnit : String -> SelectList InputUnitState -> SelectList InputUnitState
+selectNewInputUnit name inputs =
+    select (\input -> (inputName input) == name) inputs
+
+
+inputUnits : InputUnitState -> List UnitType -> String -> SelectList InputUnitState
+inputUnits first rest selection =
+    rest
+        |> List.map toInputState
+        |> SelectList.fromLists [] first
+        |> selectNewInputUnit selection
+
+
+selectNewOutputUnit : String -> SelectList UnitType -> SelectList UnitType
+selectNewOutputUnit name outputs =
+    select (\output -> (outputName output) == name) outputs
+
+
+outputUnits : UnitType -> List UnitType -> String -> SelectList UnitType
+outputUnits first rest selection =
+    rest
+        |> SelectList.fromLists [] first
+        |> selectNewOutputUnit selection
+
+
 distance : Converter
 distance =
     UnitConverter "Distance"
-        (SelectList.fromLists
-            []
-            (SingleInputState meter "1")
-            (List.map toInputState restOfDistanceUnits)
-        )
-        (SelectList.fromLists
-            []
-            (SingleUnit meter)
-            restOfDistanceUnits
-        )
+        (inputUnits (SingleInputState meter "1") restOfDistanceUnits "feet and inch")
+        (outputUnits (SingleUnit meter) restOfDistanceUnits "centimeter")
+
+
+meter : UnitDefinition
+meter =
+    { factor = 1
+    , name = "meter"
+    , abbreviation = "m"
+    }
 
 
 restOfDistanceUnits : List UnitType
@@ -299,16 +318,8 @@ gramDefinition =
 weight : Converter
 weight =
     UnitConverter "Weight"
-        (SelectList.fromLists
-            []
-            (SingleInputState poundDefinition "0")
-            (List.map toInputState restOfWeightUnits)
-        )
-        (SelectList.fromLists
-            []
-            (SingleUnit gramDefinition)
-            restOfWeightUnits
-        )
+        (inputUnits (SingleInputState poundDefinition "1") restOfWeightUnits "pound")
+        (outputUnits (SingleUnit poundDefinition) restOfWeightUnits "gram")
 
 
 restOfWeightUnits : List UnitType
@@ -325,16 +336,7 @@ restOfWeightUnits =
         , name = "metric ton"
         , abbreviation = ""
         }
-    , SingleUnit
-        poundDefinition
     ]
-
-
-squareFootDefinition =
-    { factor = 0.09290304
-    , name = "square foot"
-    , abbreviation = ""
-    }
 
 
 squareMeterDefinition =
@@ -347,26 +349,13 @@ squareMeterDefinition =
 area : Converter
 area =
     UnitConverter "Area"
-        (SelectList.fromLists
-            []
-            (SingleInputState squareFootDefinition "0")
-            (List.map toInputState restOfAreaUnits)
-        )
-        (SelectList.fromLists
-            []
-            (SingleUnit squareMeterDefinition)
-            restOfAreaUnits
-        )
+        (inputUnits (SingleInputState squareMeterDefinition "1") restOfAreaUnits "square meter")
+        (outputUnits (SingleUnit squareMeterDefinition) restOfAreaUnits "square foot")
 
 
 restOfAreaUnits : List UnitType
 restOfAreaUnits =
     [ SingleUnit
-        { factor = 1
-        , name = "square meter"
-        , abbreviation = "m²"
-        }
-    , SingleUnit
         { factor = 0.000001
         , name = "square millimeter"
         , abbreviation = "mm²"
@@ -379,7 +368,7 @@ restOfAreaUnits =
     , SingleUnit
         { factor = 1000
         , name = "mål"
-        , abbreviation = ""
+        , abbreviation = "mål"
         }
     , SingleUnit
         { factor = 10000
@@ -399,16 +388,16 @@ restOfAreaUnits =
     , SingleUnit
         { factor = 0.00064516
         , name = "square inch"
-        , abbreviation = ""
+        , abbreviation = "sq in"
         }
     , SingleUnit
         { factor = 0.09290304
         , name = "square foot"
-        , abbreviation = ""
+        , abbreviation = "sq ft"
         }
     , SingleUnit
         { factor = 2589988.110336
         , name = "square mile"
-        , abbreviation = ""
+        , abbreviation = "sq mi"
         }
     ]

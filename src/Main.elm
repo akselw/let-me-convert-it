@@ -93,11 +93,6 @@ update msg model =
 ---- VIEW ----
 
 
-removeFormatting : String -> String
-removeFormatting input =
-    input |> String.split " " |> String.join ""
-
-
 type MyStyles
     = None
     | InputStyle
@@ -113,14 +108,14 @@ stylesheet =
         , Style.style InputStyle
             [ Color.text black
             , Color.background lightGray
-            , Font.size 20 -- all units given as px
+            , Font.size 22 -- all units given as px
             , Font.alignRight
             , Font.typeface [ Font.sansSerif ]
             ]
         , Style.style ButtonStyle
             [ Color.text black
             , Color.background lightGray
-            , Font.size 20 -- all units given as px
+            , Font.size 22 -- all units given as px
             , Font.center
             , Font.typeface [ Font.sansSerif ]
             , Border.solid
@@ -192,8 +187,8 @@ viewConverter name =
 
 viewInputUnit : (String -> Msg) -> String -> Element MyStyles variation Msg
 viewInputUnit msg unit =
-    Element.row Background
-        [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (msg unit) ]
+    Element.row UnitStyle
+        [ width fill, minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (msg unit) ]
         [ Element.text unit
         ]
 
@@ -282,7 +277,7 @@ inputOutputRow converterState =
 
 buttonElement : Msg -> String -> Element MyStyles variation Msg
 buttonElement msg s =
-    column ButtonStyle [ minWidth (percent 30), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ] [ Element.text s ]
+    column ButtonStyle [ minWidth (percent 31), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ] [ Element.text s ]
 
 
 numberButton : Value -> Element MyStyles variation Msg
@@ -295,7 +290,7 @@ numberButton value =
 numberButtonRow : Value -> Value -> Value -> Element MyStyles variation Msg
 numberButtonRow first second third =
     row Background
-        [ width fill, minWidth (percent 100), minHeight (px 100), verticalCenter, spacing 8 ]
+        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
         [ numberButton first
         , numberButton second
         , numberButton third
@@ -305,7 +300,7 @@ numberButtonRow first second third =
 buttomButtonRow : Value -> Value -> Element MyStyles variation Msg
 buttomButtonRow comma zero =
     row Background
-        [ minWidth (percent 100), minHeight (px 100), verticalCenter, spacing 8 ]
+        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
         [ numberButton comma
         , numberButton zero
         , buttonElement BackspacePressed "←"
@@ -319,7 +314,7 @@ valueButtons converterState =
             row None
                 []
                 [ column None
-                    [ width fill ]
+                    [ width fill, padding 8 ]
                     [ numberButtonRow valueDict.seven valueDict.eight valueDict.nine
                     , numberButtonRow valueDict.four valueDict.five valueDict.six
                     , numberButtonRow valueDict.one valueDict.two valueDict.three
@@ -349,7 +344,7 @@ viewOutputs converterState f =
     row None
         []
         [ mapOutputUnits f converterState
-            |> column None []
+            |> column Background [ width fill ]
         ]
 
 

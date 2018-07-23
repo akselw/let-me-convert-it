@@ -308,9 +308,7 @@ selectConverter (ConverterState converters) name =
         |> ConverterState
 
 
-selectNewInputUnit : SelectList InputUnitState -> String -> SelectList InputUnitState
-selectNewInputUnit inputs name =
-    select (\input -> (UnitConverters.inputName input) == name) inputs
+
 
 
 selectInputUnit : ConverterState -> String -> ConverterState
@@ -319,16 +317,12 @@ selectInputUnit (ConverterState converters) name =
         f converter =
             case converter of
                 UnitConverter converterName inputs outputs ->
-                    UnitConverter converterName (selectNewInputUnit inputs name) outputs
+                    UnitConverter converterName (selectNewInputUnit  name inputs) outputs
     in
         converters
             |> mapSelected f
             |> ConverterState
 
-
-selectNewOutputUnit : String -> SelectList UnitType -> SelectList UnitType
-selectNewOutputUnit name outputs =
-    select (\output -> (UnitConverters.outputName output) == name) outputs
 
 
 selectOutputUnit : ConverterState -> String -> ConverterState
