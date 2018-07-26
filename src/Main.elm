@@ -101,7 +101,11 @@ type MyStyles
     | UnitStyle
 
 
-stylesheet : StyleSheet MyStyles variation
+type Variation
+    = Disabled
+
+
+stylesheet : StyleSheet MyStyles Variation
 stylesheet =
     Style.styleSheet
         [ Style.style None []
@@ -122,6 +126,10 @@ stylesheet =
             , Border.all 1
             , Color.border darkGray
             , Border.rounded 16
+            , variation Disabled
+                [ Color.background grey
+                , Color.text darkGray
+                ]
             ]
         , Style.style Background
             [ Color.background white
@@ -177,7 +185,7 @@ formatNumber number =
                 f
 
 
-viewConverter : String -> Element MyStyles variation Msg
+viewConverter : String -> Element MyStyles Variation Msg
 viewConverter name =
     Element.row UnitStyle
         [ minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (ConverterChanged name) ]
@@ -185,7 +193,7 @@ viewConverter name =
         ]
 
 
-viewInputUnit : (String -> Msg) -> String -> Element MyStyles variation Msg
+viewInputUnit : (String -> Msg) -> String -> Element MyStyles Variation Msg
 viewInputUnit msg unit =
     Element.row UnitStyle
         [ width fill, minHeight (px 75), paddingLeft 8, verticalCenter, Element.Events.onClick (msg unit) ]
@@ -193,7 +201,7 @@ viewInputUnit msg unit =
         ]
 
 
-unitRow : String -> String -> String -> Element MyStyles variation Msg
+unitRow : String -> String -> String -> Element MyStyles Variation Msg
 unitRow converterName inputName outputName =
     row None
         []
@@ -209,7 +217,7 @@ unitRow converterName inputName outputName =
         ]
 
 
-converterSelectionMenu : ConverterMenuState -> Element MyStyles variation Msg
+converterSelectionMenu : ConverterMenuState -> Element MyStyles Variation Msg
 converterSelectionMenu state =
     case state of
         ConversionSelectionMenu converter input output ->
@@ -242,8 +250,11 @@ outputFieldToString field =
             in
                 String.join " " [ major, s1, minor, s2 ]
 
+        SingleStringOutputField s ->
+            s
 
-outputField : OutputField -> Element MyStyles variation Msg
+
+outputField : OutputField -> Element MyStyles Variation Msg
 outputField field =
     row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ Element.el InputStyle [ width (percent 100), paddingRight 8 ] (Element.text (outputFieldToString field)) ]
 
@@ -251,19 +262,22 @@ outputField field =
 inputFieldToString : InputField -> String
 inputFieldToString input =
     case input of
-        SingleStringOutputField value unit ->
+        SingleUnitInputField value unit ->
             String.join " " [ value, unit ]
 
-        DoubleStringOutputField major minor majorUnit minorUnit ->
+        DoubleUnitInputField major minor majorUnit minorUnit ->
             String.join " " [ major, majorUnit, minor, minorUnit ]
 
+        SingleStringInputField s ->
+            s
 
-inputField : InputField -> Element MyStyles variation Msg
+
+inputField : InputField -> Element MyStyles Variation Msg
 inputField field =
     row InputStyle [ minWidth (percent 100), minHeight (px 75), verticalCenter ] [ Element.el InputStyle [ width (percent 100), paddingRight 8 ] (Element.text (inputFieldToString field)) ]
 
 
-inputOutputRow : ConverterState -> Element MyStyles variation Msg
+inputOutputRow : ConverterState -> Element MyStyles Variation Msg
 inputOutputRow converterState =
     row None
         []
@@ -275,19 +289,77 @@ inputOutputRow converterState =
         ]
 
 
-buttonElement : Msg -> String -> Element MyStyles variation Msg
+buttonElement : Msg -> String -> Element MyStyles Variation Msg
 buttonElement msg s =
-    column ButtonStyle [ minWidth (percent 31), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ] [ Element.text s ]
+    Element.button ButtonStyle
+        [ minWidth (percent 31), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ]
+        (Element.text s)
 
 
-numberButton : Value -> Element MyStyles variation Msg
+wideButtonElement : Msg -> String -> Element MyStyles Variation Msg
+wideButtonElement msg s =
+    Element.button ButtonStyle
+        [ minWidth (percent 64), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ]
+        (Element.text s)
+
+
+disabledButtonElement : String -> Element MyStyles Variation Msg
+disabledButtonElement s =
+    Element.button ButtonStyle
+        [ attribute "disabled" "true", minWidth (percent 31), verticalCenter, minHeight (px 100), vary Disabled True ]
+        (Element.text s)
+
+
+wideDisabledButtonElement : String -> Element MyStyles Variation Msg
+wideDisabledButtonElement s =
+    Element.button ButtonStyle
+        [ attribute "disabled" "true", minWidth (percent 64), verticalCenter, minHeight (px 100), vary Disabled True ]
+        (Element.text s)
+
+
+romanButtonElement : Msg -> String -> Element MyStyles Variation Msg
+romanButtonElement msg s =
+    column ButtonStyle
+        [ minWidth (percent 48), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ]
+        [ Element.text s ]
+
+
+disabledRomanButtonElement : String -> Element MyStyles Variation Msg
+disabledRomanButtonElement s =
+    column ButtonStyle
+        [ minWidth (percent 48), verticalCenter, minHeight (px 100), vary Disabled True ]
+        [ Element.text s ]
+
+
+numberButton : Value -> Element MyStyles Variation Msg
 numberButton value =
-    value
-        |> Converter.Converter.toString
-        |> buttonElement (ValueButtonPressed value)
+    case isActive value of
+        True ->
+            value
+                |> Converter.Converter.toString
+                |> buttonElement (ValueButtonPressed value)
+
+        False ->
+            value
+                |> Converter.Converter.toString
+                |> disabledButtonElement
 
 
-numberButtonRow : Value -> Value -> Value -> Element MyStyles variation Msg
+wideNumberButton : Value -> Element MyStyles Variation Msg
+wideNumberButton value =
+    case isActive value of
+        True ->
+            value
+                |> Converter.Converter.toString
+                |> wideButtonElement (ValueButtonPressed value)
+
+        False ->
+            value
+                |> Converter.Converter.toString
+                |> wideDisabledButtonElement
+
+
+numberButtonRow : Value -> Value -> Value -> Element MyStyles Variation Msg
 numberButtonRow first second third =
     row Background
         [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
@@ -297,7 +369,30 @@ numberButtonRow first second third =
         ]
 
 
-buttomButtonRow : Value -> Value -> Element MyStyles variation Msg
+romanButton : Value -> Element MyStyles Variation Msg
+romanButton value =
+    case isActive value of
+        True ->
+            value
+                |> Converter.Converter.toString
+                |> romanButtonElement (ValueButtonPressed value)
+
+        False ->
+            value
+                |> Converter.Converter.toString
+                |> disabledRomanButtonElement
+
+
+romanButtonRow : Value -> Value -> Element MyStyles Variation Msg
+romanButtonRow first second =
+    row Background
+        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
+        [ romanButton first
+        , romanButton second
+        ]
+
+
+buttomButtonRow : Value -> Value -> Element MyStyles Variation Msg
 buttomButtonRow comma zero =
     row Background
         [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
@@ -307,7 +402,25 @@ buttomButtonRow comma zero =
         ]
 
 
-valueButtons : ConverterState -> Element MyStyles variation Msg
+wideButtomButtonRow : Value -> Element MyStyles Variation Msg
+wideButtomButtonRow zero =
+    row Background
+        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
+        [ wideNumberButton zero
+        , buttonElement BackspacePressed "←"
+        ]
+
+
+romanButtomButtonRow : Value -> Element MyStyles Variation Msg
+romanButtomButtonRow one =
+    row Background
+        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
+        [ romanButton one
+        , romanButtonElement BackspacePressed "←"
+        ]
+
+
+valueButtons : ConverterState -> Element MyStyles Variation Msg
 valueButtons converterState =
     case values converterState of
         FloatValues valueDict ->
@@ -322,24 +435,48 @@ valueButtons converterState =
                     ]
                 ]
 
+        IntValues valueDict ->
+            row None
+                []
+                [ column None
+                    [ width fill, padding 8 ]
+                    [ numberButtonRow valueDict.seven valueDict.eight valueDict.nine
+                    , numberButtonRow valueDict.four valueDict.five valueDict.six
+                    , numberButtonRow valueDict.one valueDict.two valueDict.three
+                    , wideButtomButtonRow valueDict.zero
+                    ]
+                ]
 
-viewConverterSelection : ConverterState -> Element MyStyles variation Msg
+        RomanValues valueDict ->
+            row None
+                []
+                [ column None
+                    [ width fill, padding 8 ]
+                    [ romanButtonRow valueDict.d valueDict.m
+                    , romanButtonRow valueDict.l valueDict.c
+                    , romanButtonRow valueDict.v valueDict.x
+                    , romanButtomButtonRow valueDict.i
+                    ]
+                ]
+
+
+viewConverterSelection : ConverterState -> Element MyStyles Variation Msg
 viewConverterSelection converterState =
     column None
         [ width fill ]
         (Converter.Converter.mapConverters viewConverter converterState)
 
 
-viewInputs : ConverterState -> (String -> Element MyStyles variation Msg) -> Element MyStyles variation Msg
+viewInputs : ConverterState -> (String -> Element MyStyles Variation Msg) -> Element MyStyles Variation Msg
 viewInputs converterState f =
     row None
         []
         [ mapInputUnits f converterState
-            |> column None []
+            |> column Background [ width fill ]
         ]
 
 
-viewOutputs : ConverterState -> (String -> Element MyStyles variation Msg) -> Element MyStyles variation Msg
+viewOutputs : ConverterState -> (String -> Element MyStyles Variation Msg) -> Element MyStyles Variation Msg
 viewOutputs converterState f =
     row None
         []
@@ -348,7 +485,7 @@ viewOutputs converterState f =
         ]
 
 
-viewInputSelection : ConverterState -> Element MyStyles variation Msg
+viewInputSelection : ConverterState -> Element MyStyles Variation Msg
 viewInputSelection converterState =
     column None
         [ width fill ]
@@ -356,11 +493,11 @@ viewInputSelection converterState =
             |> converterSelectionMenu
         , inputOutputRow converterState
         , viewInputUnit InputUnitChanged
-            |> viewOutputs converterState
+            |> viewInputs converterState
         ]
 
 
-viewOutputSelection : ConverterState -> Element MyStyles variation Msg
+viewOutputSelection : ConverterState -> Element MyStyles Variation Msg
 viewOutputSelection converterState =
     column None
         [ width fill ]
@@ -372,7 +509,7 @@ viewOutputSelection converterState =
         ]
 
 
-viewConversion : ConverterState -> Element MyStyles variation Msg
+viewConversion : ConverterState -> Element MyStyles Variation Msg
 viewConversion converterState =
     column None
         [ width fill ]
@@ -385,7 +522,7 @@ viewConversion converterState =
         ]
 
 
-calculator : Model -> Element MyStyles variation Msg
+calculator : Model -> Element MyStyles Variation Msg
 calculator { selectionState, converterState } =
     case selectionState of
         ConverterSelection ->
