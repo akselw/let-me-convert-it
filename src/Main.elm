@@ -107,6 +107,25 @@ type Variation
     = Disabled
 
 
+type ButtonWidth
+    = Third
+    | Half
+    | TwoThirds
+
+
+buttonWidth : ButtonWidth -> Float
+buttonWidth width =
+    case width of
+        Third ->
+            31
+
+        Half ->
+            48
+
+        TwoThirds ->
+            64
+
+
 stylesheet : StyleSheet MyStyles Variation
 stylesheet =
     Style.styleSheet
@@ -291,135 +310,86 @@ inputOutputRow converterState =
         ]
 
 
-buttonElement : Msg -> String -> Element MyStyles Variation Msg
-buttonElement msg s =
-    Element.button ButtonStyle
-        [ minWidth (percent 31), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ]
-        (Element.text s)
+buttonElement : ButtonWidth -> Bool -> Msg -> String -> Element MyStyles Variation Msg
+buttonElement width enabled msg s =
+    let
+        commonAttributes =
+            [ width |> buttonWidth |> percent |> minWidth
+            , verticalCenter
+            , Element.Events.onClick msg
+            , minHeight (px 100)
+            ]
+    in
+        case enabled of
+            True ->
+                Element.text s
+                    |> Element.button ButtonStyle commonAttributes
+
+            False ->
+                Element.text s
+                    |> Element.button
+                        ButtonStyle
+                        (commonAttributes
+                            ++ [ attribute "disabled" "true"
+                               , vary Disabled True
+                               ]
+                        )
 
 
-wideButtonElement : Msg -> String -> Element MyStyles Variation Msg
-wideButtonElement msg s =
-    Element.button ButtonStyle
-        [ minWidth (percent 64), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ]
-        (Element.text s)
-
-
-disabledButtonElement : String -> Element MyStyles Variation Msg
-disabledButtonElement s =
-    Element.button ButtonStyle
-        [ attribute "disabled" "true", minWidth (percent 31), verticalCenter, minHeight (px 100), vary Disabled True ]
-        (Element.text s)
-
-
-wideDisabledButtonElement : String -> Element MyStyles Variation Msg
-wideDisabledButtonElement s =
-    Element.button ButtonStyle
-        [ attribute "disabled" "true", minWidth (percent 64), verticalCenter, minHeight (px 100), vary Disabled True ]
-        (Element.text s)
-
-
-romanButtonElement : Msg -> String -> Element MyStyles Variation Msg
-romanButtonElement msg s =
-    column ButtonStyle
-        [ minWidth (percent 48), verticalCenter, Element.Events.onClick msg, minHeight (px 100) ]
-        [ Element.text s ]
-
-
-disabledRomanButtonElement : String -> Element MyStyles Variation Msg
-disabledRomanButtonElement s =
-    column ButtonStyle
-        [ minWidth (percent 48), verticalCenter, minHeight (px 100), vary Disabled True ]
-        [ Element.text s ]
-
-
-numberButton : Value -> Element MyStyles Variation Msg
-numberButton value =
-    case isActive value of
-        True ->
-            value
-                |> Converter.Converter.toString
-                |> buttonElement (ValueButtonPressed value)
-
-        False ->
-            value
-                |> Converter.Converter.toString
-                |> disabledButtonElement
-
-
-wideNumberButton : Value -> Element MyStyles Variation Msg
-wideNumberButton value =
-    case isActive value of
-        True ->
-            value
-                |> Converter.Converter.toString
-                |> wideButtonElement (ValueButtonPressed value)
-
-        False ->
-            value
-                |> Converter.Converter.toString
-                |> wideDisabledButtonElement
+valueButton : ButtonWidth -> Value -> Element MyStyles Variation Msg
+valueButton width value =
+    value
+        |> Converter.Converter.toString
+        |> buttonElement width (isActive value) (ValueButtonPressed value)
 
 
 numberButtonRow : Value -> Value -> Value -> Element MyStyles Variation Msg
 numberButtonRow first second third =
-    row Background
-        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
-        [ numberButton first
-        , numberButton second
-        , numberButton third
+    buttonRow
+        [ valueButton Third first
+        , valueButton Third second
+        , valueButton Third third
         ]
-
-
-romanButton : Value -> Element MyStyles Variation Msg
-romanButton value =
-    case isActive value of
-        True ->
-            value
-                |> Converter.Converter.toString
-                |> romanButtonElement (ValueButtonPressed value)
-
-        False ->
-            value
-                |> Converter.Converter.toString
-                |> disabledRomanButtonElement
 
 
 romanButtonRow : Value -> Value -> Element MyStyles Variation Msg
 romanButtonRow first second =
-    row Background
-        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
-        [ romanButton first
-        , romanButton second
+    buttonRow
+        [ valueButton Half first
+        , valueButton Half second
         ]
 
 
-buttomButtonRow : Value -> Value -> Element MyStyles Variation Msg
-buttomButtonRow comma zero =
-    row Background
-        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
-        [ numberButton comma
-        , numberButton zero
-        , buttonElement BackspacePressed "←"
+floatBottomRow : Value -> Value -> Element MyStyles Variation Msg
+floatBottomRow comma zero =
+    buttonRow
+        [ valueButton Third comma
+        , valueButton Third zero
+        , buttonElement Third True BackspacePressed "←"
         ]
 
 
-wideButtomButtonRow : Value -> Element MyStyles Variation Msg
-wideButtomButtonRow zero =
-    row Background
-        [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
-        [ wideNumberButton zero
-        , buttonElement BackspacePressed "←"
+intBottomRow : Value -> Element MyStyles Variation Msg
+intBottomRow zero =
+    buttonRow
+        [ valueButton TwoThirds zero
+        , buttonElement Third True BackspacePressed "←"
         ]
 
 
 romanButtomButtonRow : Value -> Element MyStyles Variation Msg
 romanButtomButtonRow one =
+    buttonRow
+        [ valueButton Half one
+        , buttonElement Half True BackspacePressed "←"
+        ]
+
+
+buttonRow : List (Element MyStyles Variation Msg) -> Element MyStyles Variation Msg
+buttonRow children =
     row Background
         [ width fill, minHeight (px 100), verticalCenter, spacing 8, paddingBottom 8 ]
-        [ romanButton one
-        , romanButtonElement BackspacePressed "←"
-        ]
+        children
 
 
 valueButtons : ConverterState -> Element MyStyles Variation Msg
@@ -433,7 +403,7 @@ valueButtons converterState =
                     [ numberButtonRow valueDict.seven valueDict.eight valueDict.nine
                     , numberButtonRow valueDict.four valueDict.five valueDict.six
                     , numberButtonRow valueDict.one valueDict.two valueDict.three
-                    , buttomButtonRow valueDict.transform valueDict.zero
+                    , floatBottomRow valueDict.transform valueDict.zero
                     ]
                 ]
 
@@ -445,7 +415,7 @@ valueButtons converterState =
                     [ numberButtonRow valueDict.seven valueDict.eight valueDict.nine
                     , numberButtonRow valueDict.four valueDict.five valueDict.six
                     , numberButtonRow valueDict.one valueDict.two valueDict.three
-                    , wideButtomButtonRow valueDict.zero
+                    , intBottomRow valueDict.zero
                     ]
                 ]
 
