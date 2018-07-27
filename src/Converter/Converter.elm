@@ -1,10 +1,7 @@
 module Converter.Converter
     exposing
         ( ConverterState
-        , OutputField(..)
-        , InputField(..)
         , Value
-        , Values(..)
         , init
         , input
         , inputName
@@ -16,145 +13,64 @@ module Converter.Converter
         , toString
         , isActive
         , deleteFromInput
-        , mapConverters
-        , mapInputUnits
-        , mapOutputUnits
+        , mapConverterNames
+        , mapInputNames
+        , mapOutputNames
         , selectConverter
         , selectInputUnit
         , selectOutputUnit
         )
 
 import SelectList exposing (..)
+import Common exposing (mapSelected)
+import Converter.Value as Internal exposing (..)
+import Converter.Fields exposing (..)
+import Converter.Values exposing (..)
 import Converter.UnitConverters as UnitConverters exposing (..)
-import Converter.Types as Internal exposing (..)
 import Converter.NumberSystems as NumberSystems exposing (..)
-
-
-type OutputField
-    = SingleFloatOutputField Float String
-    | DoubleFloatOutputField Float Float String String
-    | SingleStringOutputField String
-
-
-type InputField
-    = SingleUnitInputField String String
-    | DoubleUnitInputField String String String String
-    | SingleStringInputField String
 
 
 type ConverterState
     = ConverterState (SelectList Converter)
 
 
-type CommaOrMinor
-    = Comma Bool
-    | Minor UnitDefinition
+type Converter
+    = UnitConverter UnitConverterState
+    | NumberSystemConverter NumberSystem
 
 
-type Value
-    = IntValue String Bool
-    | CommaOrMinorValue CommaOrMinor
-    | DecimalValue DecimalDigit Bool
-    | RomanValue RomanDigit Bool
-
-
-type alias FloatDict =
-    { zero : Value
-    , one : Value
-    , two : Value
-    , three : Value
-    , four : Value
-    , five : Value
-    , six : Value
-    , seven : Value
-    , eight : Value
-    , nine : Value
-    , transform : Value
-    }
-
-
-type alias IntDict =
-    { zero : Value
-    , one : Value
-    , two : Value
-    , three : Value
-    , four : Value
-    , five : Value
-    , six : Value
-    , seven : Value
-    , eight : Value
-    , nine : Value
-    }
-
-
-type alias RomanDict =
-    { m : Value
-    , d : Value
-    , c : Value
-    , l : Value
-    , x : Value
-    , v : Value
-    , i : Value
-    }
-
-
-type Values
-    = FloatValues FloatDict
-    | IntValues IntDict
-    | RomanValues RomanDict
+type alias Value =
+    Internal.Value
 
 
 init : ConverterState
 init =
-    UnitConverters.restOfConverters
-        ++ [ NumberSystems.converter ]
-        |> SelectList.fromLists [] UnitConverters.defaultConverter
+    (UnitConverters.restOfConverters
+        |> List.map UnitConverter
+    )
+        ++ [ NumberSystemConverter NumberSystems.converter ]
+        |> SelectList.fromLists [] (UnitConverter UnitConverters.defaultConverter)
         |> ConverterState
 
 
 input : ConverterState -> InputField
 input (ConverterState converters) =
     case selected converters of
-        UnitConverter _ inputs _ ->
-            case selected inputs of
-                SingleInputState unit value ->
-                    SingleUnitInputField value unit.abbreviation
+        UnitConverter state ->
+            UnitConverters.input state
 
-                ComboInputState majorDef minorDef field ->
-                    if field.majorActive then
-                        SingleUnitInputField field.major majorDef.abbreviation
-                    else
-                        DoubleUnitInputField field.major field.minor majorDef.abbreviation minorDef.abbreviation
-
-        NumberSystemConverter _ inputs _ ->
-            inputs
-                |> selected
-                |> NumberSystems.input
-                |> SingleStringInputField
-
-
-convertFromInternalField : Internal.Field -> OutputField
-convertFromInternalField field =
-    case field of
-        Internal.SingleFloatField f n ->
-            SingleFloatOutputField f n
-
-        Internal.DoubleFloatField majorF minorF majorS minorS ->
-            DoubleFloatOutputField majorF minorF majorS minorS
+        NumberSystemConverter state ->
+            NumberSystems.input state
 
 
 getSelectedInputName : Converter -> String
 getSelectedInputName converter =
     case converter of
-        UnitConverter _ inputs _ ->
-            inputs
-                |> selected
-                |> UnitConverters.inputName
+        UnitConverter state ->
+            UnitConverters.inputName state
 
-        NumberSystemConverter _ inputs _ ->
-            inputs
-                |> selected
-                |> NumberSystems.inputName
+        NumberSystemConverter state ->
+            NumberSystems.inputName state
 
 
 inputName : ConverterState -> String
@@ -167,15 +83,11 @@ inputName (ConverterState converters) =
 getSelectedOutputName : Converter -> String
 getSelectedOutputName converter =
     case converter of
-        UnitConverter _ _ outputs ->
-            outputs
-                |> selected
-                |> UnitConverters.outputName
+        UnitConverter state ->
+            UnitConverters.outputName state
 
-        NumberSystemConverter _ _ outputs ->
-            outputs
-                |> selected
-                |> NumberSystems.outputName
+        NumberSystemConverter state ->
+            NumberSystems.outputName state
 
 
 outputName : ConverterState -> String
@@ -195,155 +107,35 @@ converterName (ConverterState converters) =
 output : ConverterState -> OutputField
 output (ConverterState converters) =
     case selected converters of
-        UnitConverter _ inputs outputs ->
-            UnitConverters.convert (selected inputs) (selected outputs)
-                |> convertFromInternalField
+        UnitConverter state ->
+            UnitConverters.convert state
 
-        NumberSystemConverter _ inputs outputs ->
-            NumberSystems.convert (selected inputs) (selected outputs)
-                |> SingleStringOutputField
-
-
-unitValues : InputUnitState -> FloatDict
-unitValues inputState =
-    let
-        default : FloatDict
-        default =
-            { zero = IntValue "0" True
-            , one = IntValue "1" True
-            , two = IntValue "2" True
-            , three = IntValue "3" True
-            , four = IntValue "4" True
-            , five = IntValue "5" True
-            , six = IntValue "6" True
-            , seven = IntValue "7" True
-            , eight = IntValue "8" True
-            , nine = IntValue "9" True
-            , transform = Comma True |> CommaOrMinorValue
-            }
-    in
-        case inputState of
-            SingleInputState _ _ ->
-                default
-
-            ComboInputState _ minorDef input ->
-                if input.majorActive then
-                    { default | transform = Minor minorDef |> CommaOrMinorValue }
-                else if String.contains "," input.minor then
-                    { default | transform = Comma False |> CommaOrMinorValue }
-                else
-                    default
-
-
-romanValue : RomanNumber -> RomanDigit -> Value
-romanValue number digit =
-    number
-        |> possibleNextRoman
-        |> List.member digit
-        |> RomanValue digit
-
-
-decimalValue : FourDigitDecimalNumber -> DecimalDigit -> Value
-decimalValue number digit =
-    number
-        |> possibleNextDecimal
-        |> List.member digit
-        |> DecimalValue digit
+        NumberSystemConverter state ->
+            NumberSystems.convert state
 
 
 values : ConverterState -> Values
 values (ConverterState converters) =
     case selected converters of
-        UnitConverter _ inputs _ ->
-            inputs
-                |> selected
-                |> unitValues
-                |> FloatValues
+        UnitConverter state ->
+            UnitConverters.values state
 
-        NumberSystemConverter _ inputs _ ->
-            case (selected inputs) of
-                DecimalState number ->
-                    IntValues
-                        { zero = decimalValue number Zero
-                        , one = decimalValue number One
-                        , two = decimalValue number Two
-                        , three = decimalValue number Three
-                        , four = decimalValue number Four
-                        , five = decimalValue number Five
-                        , six = decimalValue number Six
-                        , seven = decimalValue number Seven
-                        , eight = decimalValue number Eight
-                        , nine = decimalValue number Nine
-                        }
-
-                RomanNumeralState number ->
-                    RomanValues
-                        { m = romanValue number M
-                        , d = romanValue number D
-                        , c = romanValue number C
-                        , l = romanValue number L
-                        , x = romanValue number X
-                        , v = romanValue number V
-                        , i = romanValue number I
-                        }
-
-
-addValueToUnitInput : Value -> InputUnitState -> InputUnitState
-addValueToUnitInput value input =
-    let
-        l =
-            Debug.log (toString value)
-    in
-        case value of
-            IntValue number active ->
-                UnitConverters.addNumber number input
-
-            CommaOrMinorValue commaOrMinor ->
-                case commaOrMinor of
-                    Comma _ ->
-                        UnitConverters.addComma input
-
-                    Minor _ ->
-                        UnitConverters.setMajorState False input
-
-            DecimalValue _ _ ->
-                input
-
-            RomanValue _ _ ->
-                input
-
-
-addValueToNumberSystemInput : Value -> NumberSystemState -> NumberSystemState
-addValueToNumberSystemInput value input =
-    let
-        l =
-            Debug.log (toString value)
-    in
-        case ( input, value ) of
-            ( DecimalState number, DecimalValue digit _ ) ->
-                number
-                    |> addDecimalDigit digit
-                    |> DecimalState
-
-            ( RomanNumeralState number, RomanValue digit _ ) ->
-                number
-                    |> addRomanDigit digit
-                    |> RomanNumeralState
-
-            _ ->
-                input
+        NumberSystemConverter state ->
+            NumberSystems.values state
 
 
 addToInput : ConverterState -> Value -> ConverterState
-addToInput (ConverterState converters) v =
+addToInput (ConverterState converters) value =
     let
         t converter =
             case converter of
-                UnitConverter name inputs outputs ->
-                    UnitConverter name (mapSelected (addValueToUnitInput v) inputs) outputs
+                UnitConverter state ->
+                    UnitConverters.addToInput state value
+                        |> UnitConverter
 
-                NumberSystemConverter name inputs outputs ->
-                    NumberSystemConverter name (mapSelected (addValueToNumberSystemInput v) inputs) outputs
+                NumberSystemConverter state ->
+                    NumberSystems.addToInput state value
+                        |> NumberSystemConverter
     in
         mapSelected t converters
             |> ConverterState
@@ -360,8 +152,8 @@ toString value =
                 Comma active ->
                     ","
 
-                Minor minorDef ->
-                    "+ " ++ minorDef.name
+                Minor minor ->
+                    "+ " ++ minor
 
         DecimalValue digit _ ->
             NumberSystems.digitToString digit
@@ -381,7 +173,7 @@ isActive value =
                 Comma active ->
                     active
 
-                Minor minorDef ->
+                Minor _ ->
                     True
 
         DecimalValue _ active ->
@@ -396,11 +188,15 @@ deleteFromInput (ConverterState converters) =
     let
         t converter =
             case converter of
-                UnitConverter name inputs outputs ->
-                    UnitConverter name (mapSelected UnitConverters.backspace inputs) outputs
+                UnitConverter state ->
+                    state
+                        |> UnitConverters.backspace
+                        |> UnitConverter
 
-                NumberSystemConverter name inputs outputs ->
-                    NumberSystemConverter name (mapSelected NumberSystems.backspace inputs) outputs
+                NumberSystemConverter state ->
+                    state
+                        |> NumberSystems.backspace
+                        |> NumberSystemConverter
     in
         mapSelected t converters
             |> ConverterState
@@ -409,68 +205,38 @@ deleteFromInput (ConverterState converters) =
 getConverterName : Converter -> String
 getConverterName converter =
     case converter of
-        UnitConverter name _ _ ->
-            name
+        UnitConverter state ->
+            UnitConverters.converterName state
 
-        NumberSystemConverter name _ _ ->
-            name
+        NumberSystemConverter state ->
+            NumberSystems.converterName state
 
 
-mapConverters : (String -> a) -> ConverterState -> List a
-mapConverters f (ConverterState converters) =
+mapConverterNames : (String -> a) -> ConverterState -> List a
+mapConverterNames f (ConverterState converters) =
     toList converters
         |> List.map getConverterName
         |> List.map f
 
 
-mapSelected : (a -> a) -> SelectList a -> SelectList a
-mapSelected f s =
-    s
-        |> mapBy
-            (\position elem ->
-                case position of
-                    Selected ->
-                        f elem
+mapInputNames : (String -> a) -> ConverterState -> List a
+mapInputNames f (ConverterState converters) =
+    case selected converters of
+        UnitConverter state ->
+            UnitConverters.mapInputNames f state
 
-                    _ ->
-                        elem
-            )
+        NumberSystemConverter state ->
+            NumberSystems.mapInputNames f state
 
 
-mapInputUnits : (String -> a) -> ConverterState -> List a
-mapInputUnits f (ConverterState converters) =
-    let
-        converter =
-            selected converters
-    in
-        case converter of
-            UnitConverter _ inputs _ ->
-                toList inputs
-                    |> List.map UnitConverters.inputName
-                    |> List.map f
+mapOutputNames : (String -> a) -> ConverterState -> List a
+mapOutputNames f (ConverterState converters) =
+    case selected converters of
+        UnitConverter state ->
+            UnitConverters.mapOutputNames f state
 
-            NumberSystemConverter _ inputs _ ->
-                toList inputs
-                    |> List.map NumberSystems.inputName
-                    |> List.map f
-
-
-mapOutputUnits : (String -> a) -> ConverterState -> List a
-mapOutputUnits f (ConverterState converters) =
-    let
-        converter =
-            selected converters
-    in
-        case converter of
-            UnitConverter _ _ outputs ->
-                toList outputs
-                    |> List.map UnitConverters.outputName
-                    |> List.map f
-
-            NumberSystemConverter _ _ outputs ->
-                toList outputs
-                    |> List.map NumberSystems.outputName
-                    |> List.map f
+        NumberSystemConverter state ->
+            NumberSystems.mapOutputNames f state
 
 
 selectConverter : ConverterState -> String -> ConverterState
@@ -485,11 +251,15 @@ selectInputUnit (ConverterState converters) name =
     let
         f converter =
             case converter of
-                UnitConverter converterName inputs outputs ->
-                    UnitConverter converterName (selectNewInputUnit name inputs) outputs
+                UnitConverter state ->
+                    state
+                        |> UnitConverters.selectInput name
+                        |> UnitConverter
 
-                NumberSystemConverter converterName inputs outputs ->
-                    NumberSystemConverter converterName (NumberSystems.selectInput name inputs) outputs
+                NumberSystemConverter state ->
+                    state
+                        |> NumberSystems.selectInput name
+                        |> NumberSystemConverter
     in
         converters
             |> mapSelected f
@@ -501,15 +271,15 @@ selectOutputUnit (ConverterState converters) name =
     let
         f converter =
             case converter of
-                UnitConverter converterName inputs outputs ->
-                    outputs
-                        |> selectNewOutputUnit name
-                        |> UnitConverter converterName inputs
+                UnitConverter state ->
+                    state
+                        |> UnitConverters.selectOutput name
+                        |> UnitConverter
 
-                NumberSystemConverter converterName inputs outputs ->
-                    outputs
+                NumberSystemConverter state ->
+                    state
                         |> NumberSystems.selectOutput name
-                        |> NumberSystemConverter converterName inputs
+                        |> NumberSystemConverter
     in
         converters
             |> mapSelected f

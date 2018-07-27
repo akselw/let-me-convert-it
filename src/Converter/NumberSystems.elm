@@ -1,6 +1,7 @@
 module Converter.NumberSystems
     exposing
-        ( convert
+        ( NumberSystem
+        , convert
         , initRoman
         , initDecimal
         , addRomanDigit
@@ -11,6 +12,7 @@ module Converter.NumberSystems
         , parseTest
         , converter
         , input
+        , converterName
         , inputName
         , outputName
         , selectInput
@@ -18,22 +20,89 @@ module Converter.NumberSystems
         , digitToString
         , romanDigitToString
         , decimalNumberToString
-        , convertBinaryToInt
+        , convertFromBinary
+        , decimalToInt
+        , convertToBinary
+        , values
+        , addToInput
+        , mapInputNames
+        , mapOutputNames
         )
 
 import SelectList exposing (..)
-import Converter.Types exposing (..)
+import Common exposing (mapSelected)
+import Converter.Digits exposing (..)
+import Converter.Fields exposing (..)
+import Converter.Value exposing (..)
+import Converter.Values exposing (..)
 
 
-converter : Converter
+-- Types
+
+
+type NumberSystem
+    = NumberSystem String (SelectList NumberSystemState) (SelectList NumberSystemOutput)
+
+
+type NumberSystemOutput
+    = RomanNumeral
+    | Decimal
+
+
+type NumberSystemState
+    = RomanNumeralState RomanNumber
+    | DecimalState FourDigitDecimalNumber
+
+
+type DecimalGroup
+    = Thousands
+    | Hundreds
+    | Tens
+    | Ones
+
+
+type alias GroupedRomanDigits =
+    { thousands : List RomanDigit
+    , hundreds : List RomanDigit
+    , tens : List RomanDigit
+    , ones : List RomanDigit
+    }
+
+
+type FourDigitDecimalNumber
+    = FourDigitDecimalNumber ( DecimalDigit, DecimalDigit, DecimalDigit, DecimalDigit )
+
+
+type DecimalNumber
+    = DecimalNumber (List DecimalDigit)
+
+
+type RomanNumber
+    = RomanNumber (List RomanDigit)
+
+
+type BinaryNumber
+    = BinaryNumber (List BinaryDigit)
+
+
+
+-- Functions
+
+
+converter : NumberSystem
 converter =
-    NumberSystemConverter "Number systems"
+    NumberSystem "Number systems"
         (SelectList.fromLists [] (RomanNumeralState initRoman) [ DecimalState initDecimal ])
         (SelectList.fromLists [ RomanNumeral ] Decimal [])
 
 
-input : NumberSystemState -> String
-input state =
+converterName : NumberSystem -> String
+converterName (NumberSystem name _ _) =
+    name
+
+
+getInput : NumberSystemState -> String
+getInput state =
     case state of
         RomanNumeralState number ->
             romanNumeralToString number
@@ -42,8 +111,16 @@ input state =
             decimalNumberToString number
 
 
-inputName : NumberSystemState -> String
-inputName state =
+input : NumberSystem -> InputField
+input (NumberSystem _ inputs _) =
+    inputs
+        |> selected
+        |> getInput
+        |> SingleStringInputField
+
+
+inputSystemName : NumberSystemState -> String
+inputSystemName state =
     case state of
         RomanNumeralState _ ->
             "Roman numerals"
@@ -52,14 +129,28 @@ inputName state =
             "Decimals"
 
 
-outputName : NumberSystem -> String
-outputName system =
+inputName : NumberSystem -> String
+inputName (NumberSystem _ inputs _) =
+    inputs
+        |> selected
+        |> inputSystemName
+
+
+outputSystemName : NumberSystemOutput -> String
+outputSystemName system =
     case system of
         RomanNumeral ->
             "Roman numerals"
 
         Decimal ->
             "Decimals"
+
+
+outputName : NumberSystem -> String
+outputName (NumberSystem _ _ outputs) =
+    outputs
+        |> selected
+        |> outputSystemName
 
 
 decimalNumberToString : FourDigitDecimalNumber -> String
@@ -153,14 +244,71 @@ romanNumeralToString (RomanNumber numbers) =
         |> String.join ""
 
 
-selectInput : String -> SelectList NumberSystemState -> SelectList NumberSystemState
-selectInput name inputs =
-    select (\input -> (inputName input) == name) inputs
+selectInputF : String -> SelectList NumberSystemState -> SelectList NumberSystemState
+selectInputF name inputs =
+    select (\input -> (inputSystemName input) == name) inputs
 
 
-selectOutput : String -> SelectList NumberSystem -> SelectList NumberSystem
-selectOutput name outputs =
-    select (\output -> (outputName output) == name) outputs
+selectInput : String -> NumberSystem -> NumberSystem
+selectInput name (NumberSystem converterName inputs outputs) =
+    NumberSystem converterName (selectInputF name inputs) outputs
+
+
+selectOutputF : String -> SelectList NumberSystemOutput -> SelectList NumberSystemOutput
+selectOutputF name outputs =
+    select (\output -> (outputSystemName output) == name) outputs
+
+
+selectOutput : String -> NumberSystem -> NumberSystem
+selectOutput name (NumberSystem converterName inputs outputs) =
+    outputs
+        |> selectOutputF name
+        |> NumberSystem converterName inputs
+
+
+romanValue : RomanNumber -> RomanDigit -> Value
+romanValue number digit =
+    number
+        |> possibleNextRoman
+        |> List.member digit
+        |> RomanValue digit
+
+
+decimalValue : FourDigitDecimalNumber -> DecimalDigit -> Value
+decimalValue number digit =
+    number
+        |> possibleNextDecimal
+        |> List.member digit
+        |> DecimalValue digit
+
+
+values : NumberSystem -> Values
+values (NumberSystem _ inputs _) =
+    case (selected inputs) of
+        DecimalState number ->
+            IntValues
+                { zero = decimalValue number Zero
+                , one = decimalValue number One
+                , two = decimalValue number Two
+                , three = decimalValue number Three
+                , four = decimalValue number Four
+                , five = decimalValue number Five
+                , six = decimalValue number Six
+                , seven = decimalValue number Seven
+                , eight = decimalValue number Eight
+                , nine = decimalValue number Nine
+                }
+
+        RomanNumeralState number ->
+            RomanValues
+                { m = romanValue number M
+                , d = romanValue number D
+                , c = romanValue number C
+                , l = romanValue number L
+                , x = romanValue number X
+                , v = romanValue number V
+                , i = romanValue number I
+                }
 
 
 decimalGroup : RomanDigit -> DecimalGroup
@@ -234,14 +382,46 @@ addToRomanGroup ( group, digit ) grouped =
             { grouped | ones = digit :: grouped.ones }
 
 
+addValueToNumberSystemInput : Value -> NumberSystemState -> NumberSystemState
+addValueToNumberSystemInput value input =
+    let
+        l =
+            Debug.log (toString value)
+    in
+        case ( input, value ) of
+            ( DecimalState number, DecimalValue digit _ ) ->
+                number
+                    |> addDecimalDigit digit
+                    |> DecimalState
+
+            ( RomanNumeralState number, RomanValue digit _ ) ->
+                number
+                    |> addRomanDigit digit
+                    |> RomanNumeralState
+
+            _ ->
+                input
+
+
+addToInput : NumberSystem -> Value -> NumberSystem
+addToInput (NumberSystem name inputs outputs) value =
+    NumberSystem name (mapSelected (addValueToNumberSystemInput value) inputs) outputs
+
+
 parseRoman : List RomanDigit -> GroupedRomanDigits
 parseRoman digits =
     parseRomanToList digits
         |> List.foldr addToRomanGroup emptyGroupedRomans
 
 
-convert : NumberSystemState -> NumberSystem -> String
-convert input output =
+convert : NumberSystem -> OutputField
+convert (NumberSystem _ inputs outputs) =
+    makeConversion (selected inputs) (selected outputs)
+        |> SingleStringOutputField
+
+
+makeConversion : NumberSystemState -> NumberSystemOutput -> String
+makeConversion input output =
     case ( input, output ) of
         ( RomanNumeralState number, RomanNumeral ) ->
             romanNumeralToString number
@@ -258,6 +438,20 @@ convert input output =
 
         ( DecimalState number, Decimal ) ->
             decimalNumberToString number
+
+
+mapInputNames : (String -> a) -> NumberSystem -> List a
+mapInputNames f (NumberSystem _ inputs _) =
+    toList inputs
+        |> List.map inputSystemName
+        |> List.map f
+
+
+mapOutputNames : (String -> a) -> NumberSystem -> List a
+mapOutputNames f (NumberSystem _ _ outputs) =
+    toList outputs
+        |> List.map outputSystemName
+        |> List.map f
 
 
 convertRomanDigitsToDigit : ( RomanDigit, RomanDigit, RomanDigit ) -> List RomanDigit -> DecimalDigit
@@ -612,18 +806,23 @@ backspaceRoman (RomanNumber numbers) =
         |> RomanNumber
 
 
-backspace : NumberSystemState -> NumberSystemState
-backspace state =
-    case state of
-        RomanNumeralState number ->
-            number
-                |> backspaceRoman
-                |> RomanNumeralState
+backspace : NumberSystem -> NumberSystem
+backspace (NumberSystem name inputs outputs) =
+    let
+        helper : NumberSystemState -> NumberSystemState
+        helper state =
+            case state of
+                RomanNumeralState number ->
+                    number
+                        |> backspaceRoman
+                        |> RomanNumeralState
 
-        DecimalState number ->
-            number
-                |> backspaceDecimal
-                |> DecimalState
+                DecimalState number ->
+                    number
+                        |> backspaceDecimal
+                        |> DecimalState
+    in
+        NumberSystem name (mapSelected helper inputs) outputs
 
 
 initRoman : RomanNumber
@@ -631,8 +830,98 @@ initRoman =
     RomanNumber []
 
 
-convertBinaryToInt : BinaryNumber -> Int
-convertBinaryToInt (BinaryNumber digits) =
+intToDecimal : Int -> DecimalNumber
+intToDecimal n =
+    let
+        helper : Char -> DecimalDigit
+        helper x =
+            case x of
+                '1' ->
+                    One
+
+                '2' ->
+                    Two
+
+                '3' ->
+                    Three
+
+                '4' ->
+                    Four
+
+                '5' ->
+                    Five
+
+                '6' ->
+                    Six
+
+                '7' ->
+                    Seven
+
+                '8' ->
+                    Eight
+
+                '9' ->
+                    Nine
+
+                _ ->
+                    Zero
+    in
+        n
+            |> toString
+            |> String.foldr (\c list -> helper c :: list) []
+            |> DecimalNumber
+
+
+decimalToInt : DecimalNumber -> Int
+decimalToInt (DecimalNumber decimalDigits) =
+    let
+        helper : List DecimalDigit -> Int
+        helper digits =
+            case digits of
+                [] ->
+                    0
+
+                a :: rest ->
+                    let
+                        calcHelper i =
+                            (i * (10 ^ (List.length rest))) + helper rest
+                    in
+                        case a of
+                            Zero ->
+                                helper rest
+
+                            One ->
+                                calcHelper 1
+
+                            Two ->
+                                calcHelper 2
+
+                            Three ->
+                                calcHelper 3
+
+                            Four ->
+                                calcHelper 4
+
+                            Five ->
+                                calcHelper 5
+
+                            Six ->
+                                calcHelper 6
+
+                            Seven ->
+                                calcHelper 7
+
+                            Eight ->
+                                calcHelper 8
+
+                            Nine ->
+                                calcHelper 9
+    in
+        helper decimalDigits
+
+
+convertFromBinary : BinaryNumber -> DecimalNumber
+convertFromBinary (BinaryNumber binaryDigits) =
     let
         helper : List BinaryDigit -> Int
         helper digits =
@@ -648,4 +937,35 @@ convertBinaryToInt (BinaryNumber digits) =
                         BinaryOne ->
                             (2 ^ (List.length rest)) + helper rest
     in
-        helper digits
+        binaryDigits
+            |> helper
+            |> intToDecimal
+
+
+convertToBinary : DecimalNumber -> BinaryNumber
+convertToBinary number =
+    let
+        nextTwoFactor : Int -> Int -> Int
+        nextTwoFactor total exponent =
+            if 2 ^ exponent > total then
+                exponent - 1
+            else
+                exponent
+                    + 1
+                    |> nextTwoFactor total
+
+        helperRec : Int -> Int -> List BinaryDigit
+        helperRec exponent res =
+            if exponent < 0 then
+                []
+            else if res >= 2 ^ exponent then
+                BinaryOne :: helperRec (exponent - 1) (res - 2 ^ exponent)
+            else
+                BinaryZero :: helperRec (exponent - 1) res
+
+        int =
+            decimalToInt number
+    in
+        int
+            |> helperRec (nextTwoFactor int 1)
+            |> BinaryNumber

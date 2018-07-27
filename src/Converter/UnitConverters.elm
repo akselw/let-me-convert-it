@@ -1,20 +1,148 @@
 module Converter.UnitConverters
     exposing
-        ( inputName
-        , outputName
+        ( UnitConverterState
+          -- input/output
+        , input
+        , addToInput
+        , backspace
         , convert
+          --names
+        , converterName
+        , inputName
+        , outputName
+        , mapInputNames
+        , mapOutputNames
+          -- selection
+        , selectInput
+        , selectOutput
+          -- values
+        , values
+          -- converters
         , defaultConverter
         , restOfConverters
-        , addComma
-        , addNumber
-        , backspace
-        , setMajorState
-        , selectNewInputUnit
-        , selectNewOutputUnit
         )
 
 import SelectList exposing (..)
-import Converter.Types exposing (..)
+import Common exposing (mapSelected)
+import Converter.Fields exposing (..)
+import Converter.Value exposing (..)
+import Converter.Values exposing (..)
+
+
+-- Types
+
+
+type UnitConverterState
+    = UnitConverterState String (SelectList InputUnitState) (SelectList UnitType)
+
+
+type alias ComboInput =
+    { major : String
+    , minor : String
+    , majorActive : Bool
+    }
+
+
+type InputUnitState
+    = SingleInputState UnitDefinition String
+    | ComboInputState UnitDefinition UnitDefinition ComboInput
+
+
+type alias UnitDefinition =
+    { factor : Float
+    , name : String
+    , abbreviation : String
+    }
+
+
+type UnitType
+    = SingleUnit UnitDefinition
+    | ComboUnit UnitDefinition UnitDefinition
+
+
+
+-- Functions
+
+
+addValueToUnitInput : Value -> InputUnitState -> InputUnitState
+addValueToUnitInput value input =
+    case value of
+        IntValue number active ->
+            addNumber number input
+
+        CommaOrMinorValue commaOrMinor ->
+            case commaOrMinor of
+                Comma _ ->
+                    addComma input
+
+                Minor _ ->
+                    setMajorState False input
+
+        DecimalValue _ _ ->
+            input
+
+        RomanValue _ _ ->
+            input
+
+
+addToInput : UnitConverterState -> Value -> UnitConverterState
+addToInput (UnitConverterState name inputs outputs) value =
+    UnitConverterState name (mapSelected (addValueToUnitInput value) inputs) outputs
+
+
+unitValues : InputUnitState -> FloatDict
+unitValues inputState =
+    let
+        default : FloatDict
+        default =
+            { zero = IntValue "0" True
+            , one = IntValue "1" True
+            , two = IntValue "2" True
+            , three = IntValue "3" True
+            , four = IntValue "4" True
+            , five = IntValue "5" True
+            , six = IntValue "6" True
+            , seven = IntValue "7" True
+            , eight = IntValue "8" True
+            , nine = IntValue "9" True
+            , transform = Comma True |> CommaOrMinorValue
+            }
+    in
+        case inputState of
+            SingleInputState _ _ ->
+                default
+
+            ComboInputState _ minorDef input ->
+                if input.majorActive then
+                    { default | transform = Minor minorDef.name |> CommaOrMinorValue }
+                else if String.contains "," input.minor then
+                    { default | transform = Comma False |> CommaOrMinorValue }
+                else
+                    default
+
+
+values : UnitConverterState -> Values
+values (UnitConverterState _ inputs _) =
+    inputs
+        |> selected
+        |> unitValues
+        |> FloatValues
+
+
+input : UnitConverterState -> InputField
+input (UnitConverterState _ inputs _) =
+    case selected inputs of
+        SingleInputState unit value ->
+            SingleUnitInputField { value = value, unit = unit.abbreviation }
+
+        ComboInputState majorDef minorDef field ->
+            if field.majorActive then
+                SingleUnitInputField { value = field.major, unit = majorDef.abbreviation }
+            else
+                DoubleUnitInputField
+                    { major = { value = field.major, unit = majorDef.abbreviation }
+                    , minor = { value = field.minor, unit = minorDef.abbreviation }
+                    }
 
 
 updateInputNumberPress : String -> String -> String
@@ -64,8 +192,8 @@ updateInputBackspace input =
         String.dropRight 1 input
 
 
-backspace : InputUnitState -> InputUnitState
-backspace inputState =
+unitBackspace : InputUnitState -> InputUnitState
+unitBackspace inputState =
     case inputState of
         SingleInputState unit input ->
             SingleInputState unit (updateInputBackspace input)
@@ -84,6 +212,11 @@ backspace inputState =
                 ComboInputState major minor { input | minor = (updateInputBackspace input.minor) }
 
 
+backspace : UnitConverterState -> UnitConverterState
+backspace (UnitConverterState name inputs outputs) =
+    UnitConverterState name (mapSelected unitBackspace inputs) outputs
+
+
 setMajorState : Bool -> InputUnitState -> InputUnitState
 setMajorState active inputState =
     case inputState of
@@ -94,18 +227,34 @@ setMajorState active inputState =
             ComboInputState major minor { input | majorActive = active }
 
 
-defaultConverter : Converter
-defaultConverter =
-    distance
+inputName : UnitConverterState -> String
+inputName (UnitConverterState _ inputs _) =
+    inputs
+        |> selected
+        |> inputUnitName
 
 
-restOfConverters : List Converter
-restOfConverters =
-    [ weight, area ]
+converterName : UnitConverterState -> String
+converterName (UnitConverterState name _ _) =
+    name
 
 
-inputName : InputUnitState -> String
-inputName inputState =
+mapInputNames : (String -> a) -> UnitConverterState -> List a
+mapInputNames f (UnitConverterState _ inputs _) =
+    toList inputs
+        |> List.map inputUnitName
+        |> List.map f
+
+
+mapOutputNames : (String -> a) -> UnitConverterState -> List a
+mapOutputNames f (UnitConverterState _ _ outputs) =
+    toList outputs
+        |> List.map outputUnitName
+        |> List.map f
+
+
+inputUnitName : InputUnitState -> String
+inputUnitName inputState =
     case inputState of
         SingleInputState def _ ->
             def.name
@@ -114,8 +263,15 @@ inputName inputState =
             majorDef.name ++ " and " ++ minorDef.name
 
 
-outputName : UnitType -> String
-outputName unit =
+outputName : UnitConverterState -> String
+outputName (UnitConverterState _ _ outputs) =
+    outputs
+        |> selected
+        |> outputUnitName
+
+
+outputUnitName : UnitType -> String
+outputUnitName unit =
     case unit of
         SingleUnit def ->
             def.name
@@ -178,18 +334,27 @@ makeConversion input output =
         |> convertToOutput output
 
 
-convert : InputUnitState -> UnitType -> Field
-convert input output =
+convert : UnitConverterState -> OutputField
+convert (UnitConverterState _ inputs outputs) =
     let
+        input =
+            selected inputs
+
+        output =
+            selected outputs
+
         ( major, minor ) =
             makeConversion input output
     in
         case output of
             SingleUnit def ->
-                SingleFloatField major def.abbreviation
+                SingleFloatOutputField { value = major, unit = def.abbreviation }
 
             ComboUnit majorDef minorDef ->
-                DoubleFloatField major minor majorDef.abbreviation minorDef.abbreviation
+                DoubleFloatOutputField
+                    { major = { value = major, unit = majorDef.abbreviation }
+                    , minor = { value = minor, unit = minorDef.abbreviation }
+                    }
 
 
 feetDefinition : UnitDefinition
@@ -225,7 +390,12 @@ toInputState unit =
 
 selectNewInputUnit : String -> SelectList InputUnitState -> SelectList InputUnitState
 selectNewInputUnit name inputs =
-    select (\input -> (inputName input) == name) inputs
+    select (\input -> (inputUnitName input) == name) inputs
+
+
+selectInput : String -> UnitConverterState -> UnitConverterState
+selectInput name (UnitConverterState converterName inputs outputs) =
+    UnitConverterState converterName (selectNewInputUnit name inputs) outputs
 
 
 inputUnits : InputUnitState -> List UnitType -> String -> SelectList InputUnitState
@@ -238,7 +408,14 @@ inputUnits first rest selection =
 
 selectNewOutputUnit : String -> SelectList UnitType -> SelectList UnitType
 selectNewOutputUnit name outputs =
-    select (\output -> (outputName output) == name) outputs
+    select (\output -> (outputUnitName output) == name) outputs
+
+
+selectOutput : String -> UnitConverterState -> UnitConverterState
+selectOutput name (UnitConverterState converterName inputs outputs) =
+    outputs
+        |> selectNewOutputUnit name
+        |> UnitConverterState converterName inputs
 
 
 outputUnits : UnitType -> List UnitType -> String -> SelectList UnitType
@@ -248,9 +425,23 @@ outputUnits first rest selection =
         |> selectNewOutputUnit selection
 
 
-distance : Converter
+
+-- Converters
+
+
+defaultConverter : UnitConverterState
+defaultConverter =
+    distance
+
+
+restOfConverters : List UnitConverterState
+restOfConverters =
+    [ weight, area ]
+
+
+distance : UnitConverterState
 distance =
-    UnitConverter "Distance"
+    UnitConverterState "Distance"
         (inputUnits (SingleInputState meter "1") restOfDistanceUnits "feet and inch")
         (outputUnits (SingleUnit meter) restOfDistanceUnits "centimeter")
 
@@ -301,6 +492,7 @@ restOfDistanceUnits =
     ]
 
 
+poundDefinition : UnitDefinition
 poundDefinition =
     { factor = 0.454
     , name = "pound"
@@ -308,6 +500,7 @@ poundDefinition =
     }
 
 
+gramDefinition : UnitDefinition
 gramDefinition =
     { factor = 0.001
     , name = "gram"
@@ -315,9 +508,9 @@ gramDefinition =
     }
 
 
-weight : Converter
+weight : UnitConverterState
 weight =
-    UnitConverter "Weight"
+    UnitConverterState "Weight"
         (inputUnits (SingleInputState poundDefinition "1") restOfWeightUnits "pound")
         (outputUnits (SingleUnit poundDefinition) restOfWeightUnits "gram")
 
@@ -339,6 +532,7 @@ restOfWeightUnits =
     ]
 
 
+squareMeterDefinition : UnitDefinition
 squareMeterDefinition =
     { factor = 1
     , name = "square meter"
@@ -346,9 +540,9 @@ squareMeterDefinition =
     }
 
 
-area : Converter
+area : UnitConverterState
 area =
-    UnitConverter "Area"
+    UnitConverterState "Area"
         (inputUnits (SingleInputState squareMeterDefinition "1") restOfAreaUnits "square meter")
         (outputUnits (SingleUnit squareMeterDefinition) restOfAreaUnits "square foot")
 

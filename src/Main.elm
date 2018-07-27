@@ -11,6 +11,8 @@ import Style.Border as Border exposing (..)
 import Color exposing (..)
 import Round exposing (round)
 import Converter.Converter exposing (..)
+import Converter.Fields exposing (..)
+import Converter.Values exposing (..)
 
 
 type alias Model =
@@ -233,22 +235,22 @@ converterSelectionMenu state =
 outputFieldToString : OutputField -> String
 outputFieldToString field =
     case field of
-        SingleFloatOutputField f s ->
+        SingleFloatOutputField { value, unit } ->
             let
                 number =
-                    formatNumber f
+                    formatNumber value
             in
-                number ++ " " ++ s
+                number ++ " " ++ unit
 
-        DoubleFloatOutputField f1 f2 s1 s2 ->
+        DoubleFloatOutputField { major, minor } ->
             let
-                major =
-                    formatNumber f1
+                majorValue =
+                    formatNumber major.value
 
-                minor =
-                    formatNumber f2
+                minorValue =
+                    formatNumber minor.value
             in
-                String.join " " [ major, s1, minor, s2 ]
+                String.join " " [ majorValue, major.unit, minorValue, minor.unit ]
 
         SingleStringOutputField s ->
             s
@@ -262,11 +264,11 @@ outputField field =
 inputFieldToString : InputField -> String
 inputFieldToString input =
     case input of
-        SingleUnitInputField value unit ->
+        SingleUnitInputField { value, unit } ->
             String.join " " [ value, unit ]
 
-        DoubleUnitInputField major minor majorUnit minorUnit ->
-            String.join " " [ major, majorUnit, minor, minorUnit ]
+        DoubleUnitInputField { major, minor } ->
+            String.join " " [ major.value, major.unit, minor.value, minor.unit ]
 
         SingleStringInputField s ->
             s
@@ -422,7 +424,7 @@ romanButtomButtonRow one =
 
 valueButtons : ConverterState -> Element MyStyles Variation Msg
 valueButtons converterState =
-    case values converterState of
+    case Converter.Converter.values converterState of
         FloatValues valueDict ->
             row None
                 []
@@ -464,14 +466,14 @@ viewConverterSelection : ConverterState -> Element MyStyles Variation Msg
 viewConverterSelection converterState =
     column None
         [ width fill ]
-        (Converter.Converter.mapConverters viewConverter converterState)
+        (Converter.Converter.mapConverterNames viewConverter converterState)
 
 
 viewInputs : ConverterState -> (String -> Element MyStyles Variation Msg) -> Element MyStyles Variation Msg
 viewInputs converterState f =
     row None
         []
-        [ mapInputUnits f converterState
+        [ mapInputNames f converterState
             |> column Background [ width fill ]
         ]
 
@@ -480,7 +482,7 @@ viewOutputs : ConverterState -> (String -> Element MyStyles Variation Msg) -> El
 viewOutputs converterState f =
     row None
         []
-        [ mapOutputUnits f converterState
+        [ mapOutputNames f converterState
             |> column Background [ width fill ]
         ]
 
