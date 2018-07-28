@@ -84,6 +84,12 @@ addValueToUnitInput value input =
         RomanValue _ _ ->
             input
 
+        BinaryValue _ _ ->
+            input
+
+        HexValue _ _ ->
+            input
+
 
 addToInput : UnitConverterState -> Value -> UnitConverterState
 addToInput (UnitConverterState name inputs outputs) value =

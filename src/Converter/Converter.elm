@@ -25,6 +25,7 @@ import SelectList exposing (..)
 import Common exposing (mapSelected)
 import Converter.Value as Internal exposing (..)
 import Converter.Fields exposing (..)
+import Converter.Value as Value exposing (toString)
 import Converter.Values exposing (..)
 import Converter.UnitConverters as UnitConverters exposing (..)
 import Converter.NumberSystems as NumberSystems exposing (..)
@@ -142,45 +143,13 @@ addToInput (ConverterState converters) value =
 
 
 toString : Value -> String
-toString value =
-    case value of
-        IntValue s _ ->
-            s
-
-        CommaOrMinorValue e ->
-            case e of
-                Comma active ->
-                    ","
-
-                Minor minor ->
-                    "+ " ++ minor
-
-        DecimalValue digit _ ->
-            NumberSystems.digitToString digit
-
-        RomanValue digit _ ->
-            NumberSystems.romanDigitToString digit
+toString =
+    Value.toString
 
 
 isActive : Value -> Bool
-isActive value =
-    case value of
-        IntValue _ active ->
-            active
-
-        CommaOrMinorValue e ->
-            case e of
-                Comma active ->
-                    active
-
-                Minor _ ->
-                    True
-
-        DecimalValue _ active ->
-            active
-
-        RomanValue _ active ->
-            active
+isActive =
+    Value.isActive
 
 
 deleteFromInput : ConverterState -> ConverterState

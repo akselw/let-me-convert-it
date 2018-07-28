@@ -108,14 +108,19 @@ type Variation
 
 
 type ButtonWidth
-    = Third
+    = Quarter
+    | Third
     | Half
     | TwoThirds
+    | Whole
 
 
 buttonWidth : ButtonWidth -> Float
 buttonWidth width =
     case width of
+        Quarter ->
+            23
+
         Third ->
             31
 
@@ -124,6 +129,9 @@ buttonWidth width =
 
         TwoThirds ->
             64
+
+        Whole ->
+            98
 
 
 stylesheet : StyleSheet MyStyles Variation
@@ -352,6 +360,16 @@ numberButtonRow first second third =
         ]
 
 
+hexButtonRow : Value -> Value -> Value -> Value -> Element MyStyles Variation Msg
+hexButtonRow first second third fourth =
+    buttonRow
+        [ valueButton Quarter first
+        , valueButton Quarter second
+        , valueButton Quarter third
+        , valueButton Quarter fourth
+        ]
+
+
 romanButtonRow : Value -> Value -> Element MyStyles Variation Msg
 romanButtonRow first second =
     buttonRow
@@ -382,6 +400,13 @@ romanButtomButtonRow one =
     buttonRow
         [ valueButton Half one
         , buttonElement Half True BackspacePressed "←"
+        ]
+
+
+binaryButtonRow : Element MyStyles Variation Msg
+binaryButtonRow =
+    buttonRow
+        [ buttonElement Whole True BackspacePressed "←"
         ]
 
 
@@ -428,6 +453,29 @@ valueButtons converterState =
                     , romanButtonRow valueDict.l valueDict.c
                     , romanButtonRow valueDict.v valueDict.x
                     , romanButtomButtonRow valueDict.i
+                    ]
+                ]
+
+        BinaryValues valueDict ->
+            row None
+                []
+                [ column None
+                    [ width fill, padding 8 ]
+                    [ romanButtonRow valueDict.zero valueDict.one
+                    , binaryButtonRow
+                    ]
+                ]
+
+        HexValues valueDict ->
+            row None
+                []
+                [ column None
+                    [ width fill, padding 8 ]
+                    [ hexButtonRow valueDict.thirteen valueDict.fourteen valueDict.fifteen valueDict.zero
+                    , hexButtonRow valueDict.nine valueDict.ten valueDict.eleven valueDict.twelve
+                    , hexButtonRow valueDict.five valueDict.six valueDict.seven valueDict.eight
+                    , hexButtonRow valueDict.one valueDict.two valueDict.three valueDict.four
+                    , binaryButtonRow
                     ]
                 ]
 

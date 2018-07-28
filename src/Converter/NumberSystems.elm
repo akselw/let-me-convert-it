@@ -17,9 +17,7 @@ module Converter.NumberSystems
         , outputName
         , selectInput
         , selectOutput
-        , digitToString
-        , romanDigitToString
-        , decimalNumberToString
+        , fourDigitDecimalNumberToString
         , convertFromBinary
         , decimalToInt
         , convertToBinary
@@ -52,6 +50,7 @@ type NumberSystemOutput
 type NumberSystemState
     = RomanNumeralState RomanNumber
     | DecimalState FourDigitDecimalNumber
+    | BinaryState BinaryNumber
 
 
 type DecimalGroup
@@ -92,7 +91,7 @@ type BinaryNumber
 converter : NumberSystem
 converter =
     NumberSystem "Number systems"
-        (SelectList.fromLists [] (RomanNumeralState initRoman) [ DecimalState initDecimal ])
+        (SelectList.fromLists [] (RomanNumeralState initRoman) [ DecimalState initDecimal, BinaryState initBinary ])
         (SelectList.fromLists [ RomanNumeral ] Decimal [])
 
 
@@ -108,7 +107,10 @@ getInput state =
             romanNumeralToString number
 
         DecimalState number ->
-            decimalNumberToString number
+            fourDigitDecimalNumberToString number
+
+        BinaryState number ->
+            binaryNumberToString number
 
 
 input : NumberSystem -> InputField
@@ -127,6 +129,9 @@ inputSystemName state =
 
         DecimalState _ ->
             "Decimals"
+
+        BinaryState _ ->
+            "Binary"
 
 
 inputName : NumberSystem -> String
@@ -153,8 +158,8 @@ outputName (NumberSystem _ _ outputs) =
         |> outputSystemName
 
 
-decimalNumberToString : FourDigitDecimalNumber -> String
-decimalNumberToString (FourDigitDecimalNumber numbers) =
+fourDigitDecimalNumberToString : FourDigitDecimalNumber -> String
+fourDigitDecimalNumberToString (FourDigitDecimalNumber numbers) =
     case numbers of
         ( Zero, Zero, Zero, Zero ) ->
             "0"
@@ -178,63 +183,18 @@ decimalNumberToString (FourDigitDecimalNumber numbers) =
                 |> String.join ""
 
 
-digitToString : DecimalDigit -> String
-digitToString digit =
-    case digit of
-        One ->
-            "1"
-
-        Two ->
-            "2"
-
-        Three ->
-            "3"
-
-        Four ->
-            "4"
-
-        Five ->
-            "5"
-
-        Six ->
-            "6"
-
-        Seven ->
-            "7"
-
-        Eight ->
-            "8"
-
-        Nine ->
-            "9"
-
-        Zero ->
-            "0"
+binaryNumberToString : BinaryNumber -> String
+binaryNumberToString (BinaryNumber number) =
+    number
+        |> List.map binaryDigitToString
+        |> String.join ""
 
 
-romanDigitToString : RomanDigit -> String
-romanDigitToString digit =
-    case digit of
-        M ->
-            "M"
-
-        D ->
-            "D"
-
-        C ->
-            "C"
-
-        L ->
-            "L"
-
-        X ->
-            "X"
-
-        V ->
-            "V"
-
-        I ->
-            "I"
+decimalNumberToString : DecimalNumber -> String
+decimalNumberToString (DecimalNumber number) =
+    number
+        |> List.map digitToString
+        |> String.join ""
 
 
 romanNumeralToString : RomanNumber -> String
@@ -310,6 +270,34 @@ values (NumberSystem _ inputs _) =
                 , i = romanValue number I
                 }
 
+        BinaryState _ ->
+            BinaryValues
+                { zero = BinaryValue BinaryZero True
+                , one = BinaryValue BinaryOne True
+                }
+
+
+
+--values (NumberSystem _ inputs _) =
+--    HexValues
+--        { zero = HexValue HexZero True
+--        , one = HexValue HexOne True
+--        , two = HexValue HexTwo True
+--        , three = HexValue HexThree True
+--        , four = HexValue HexFour True
+--        , five = HexValue HexFive True
+--        , six = HexValue HexSix True
+--        , seven = HexValue HexSeven True
+--        , eight = HexValue HexEight True
+--        , nine = HexValue HexNine True
+--        , ten = HexValue HexTen True
+--        , eleven = HexValue HexEleven True
+--        , twelve = HexValue HexTwelve True
+--        , thirteen = HexValue HexThirteen True
+--        , fourteen = HexValue HexFourteen True
+--        , fifteen = HexValue HexFifteen True
+--        }
+
 
 decimalGroup : RomanDigit -> DecimalGroup
 decimalGroup digit =
@@ -384,23 +372,24 @@ addToRomanGroup ( group, digit ) grouped =
 
 addValueToNumberSystemInput : Value -> NumberSystemState -> NumberSystemState
 addValueToNumberSystemInput value input =
-    let
-        l =
-            Debug.log (toString value)
-    in
-        case ( input, value ) of
-            ( DecimalState number, DecimalValue digit _ ) ->
-                number
-                    |> addDecimalDigit digit
-                    |> DecimalState
+    case ( input, value ) of
+        ( DecimalState number, DecimalValue digit _ ) ->
+            number
+                |> addDecimalDigit digit
+                |> DecimalState
 
-            ( RomanNumeralState number, RomanValue digit _ ) ->
-                number
-                    |> addRomanDigit digit
-                    |> RomanNumeralState
+        ( RomanNumeralState number, RomanValue digit _ ) ->
+            number
+                |> addRomanDigit digit
+                |> RomanNumeralState
 
-            _ ->
-                input
+        ( BinaryState number, BinaryValue digit _ ) ->
+            number
+                |> addBinaryDigit digit
+                |> BinaryState
+
+        _ ->
+            input
 
 
 addToInput : NumberSystem -> Value -> NumberSystem
@@ -429,7 +418,7 @@ makeConversion input output =
         ( RomanNumeralState number, Decimal ) ->
             number
                 |> convertFromRoman
-                |> decimalNumberToString
+                |> fourDigitDecimalNumberToString
 
         ( DecimalState number, RomanNumeral ) ->
             number
@@ -437,7 +426,15 @@ makeConversion input output =
                 |> romanNumeralToString
 
         ( DecimalState number, Decimal ) ->
-            decimalNumberToString number
+            fourDigitDecimalNumberToString number
+
+        ( BinaryState number, RomanNumeral ) ->
+            "m"
+
+        ( BinaryState number, Decimal ) ->
+            number
+                |> convertFromBinary
+                |> decimalNumberToString
 
 
 mapInputNames : (String -> a) -> NumberSystem -> List a
@@ -789,9 +786,35 @@ possibleNextRoman (RomanNumber digits) =
 addRomanDigit : RomanDigit -> RomanNumber -> RomanNumber
 addRomanDigit digit ((RomanNumber digits) as numbers) =
     if possibleNextRoman numbers |> List.member digit then
-        RomanNumber (digits ++ [ digit ])
+        digits
+            ++ [ digit ]
+            |> RomanNumber
     else
         numbers
+
+
+addBinaryDigit : BinaryDigit -> BinaryNumber -> BinaryNumber
+addBinaryDigit digit (BinaryNumber digits) =
+    case digits of
+        BinaryZero :: [] ->
+            BinaryNumber [ digit ]
+
+        _ ->
+            digits
+                ++ [ digit ]
+                |> BinaryNumber
+
+
+backspaceBinary : BinaryNumber -> BinaryNumber
+backspaceBinary (BinaryNumber numbers) =
+    case numbers of
+        a :: [] ->
+            BinaryNumber [ BinaryZero ]
+
+        _ ->
+            numbers
+                |> List.take ((List.length numbers) - 1)
+                |> BinaryNumber
 
 
 backspaceDecimal : FourDigitDecimalNumber -> FourDigitDecimalNumber
@@ -821,6 +844,11 @@ backspace (NumberSystem name inputs outputs) =
                     number
                         |> backspaceDecimal
                         |> DecimalState
+
+                BinaryState number ->
+                    number
+                        |> backspaceBinary
+                        |> BinaryState
     in
         NumberSystem name (mapSelected helper inputs) outputs
 
@@ -828,6 +856,11 @@ backspace (NumberSystem name inputs outputs) =
 initRoman : RomanNumber
 initRoman =
     RomanNumber []
+
+
+initBinary : BinaryNumber
+initBinary =
+    BinaryNumber [ BinaryZero ]
 
 
 intToDecimal : Int -> DecimalNumber
@@ -867,7 +900,7 @@ intToDecimal n =
                     Zero
     in
         n
-            |> toString
+            |> Basics.toString
             |> String.foldr (\c list -> helper c :: list) []
             |> DecimalNumber
 
