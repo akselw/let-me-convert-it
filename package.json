@@ -4,10 +4,12 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "elm-app build && npm run change-gitignore",
     "build": "elm-app build",
-    "docker-build": "npm run build && docker build .",
-    "start": "node ./server/server.js"
+    "docker-build": "docker build .",
+    "start": "node ./server/server.js",
+    "zip-files": "zip bundle.zip -r build server Dockerfile package-lock.json package.json",
+    "change-gitignore": "mv .gitignore .gitignore-dev && mv .gitignore-travis .gitignore && git add ."
   },
   "author": "",
   "license": "ISC",

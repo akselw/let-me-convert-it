@@ -10,4 +10,6 @@ COPY server/ ./server
 
 EXPOSE 8080
 
+WORKDIR /usr/src/app/server
+
 CMD [ "npm", "start" ]

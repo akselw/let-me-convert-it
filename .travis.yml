@@ -1,0 +1,25 @@
+language: node_js
+
+node_js:
+- "8"
+
+sudo: required
+
+services:
+- docker
+
+deploy:
+  skip_cleanup: true
+  provider: elasticbeanstalk
+  access_key_id: $ACCESSKEYID
+  secret_access_key:
+    secure: "$SECRETACCESSKEY"
+  region: "us-east-2"
+  app: "Let Me Convert It"
+  env: "LetMeConvertIt-env"
+  bucket_name: "elasticbeanstalk-us-east-2-kz225tdqgj"
+  on:
+    branch: master
+
+after_deploy:
+- echo "done deploying"
