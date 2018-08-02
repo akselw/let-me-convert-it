@@ -45,12 +45,15 @@ type NumberSystem
 type NumberSystemOutput
     = RomanNumeral
     | Decimal
+    | Binary
+    | Hex
 
 
 type NumberSystemState
     = RomanNumeralState RomanNumber
-    | DecimalState FourDigitDecimalNumber
+    | DecimalState DecimalNumber
     | BinaryState BinaryNumber
+    | HexState HexNumber
 
 
 type DecimalGroup
@@ -84,6 +87,10 @@ type BinaryNumber
     = BinaryNumber (List BinaryDigit)
 
 
+type HexNumber
+    = HexNumber (List HexDigit)
+
+
 
 -- Functions
 
@@ -91,8 +98,14 @@ type BinaryNumber
 converter : NumberSystem
 converter =
     NumberSystem "Number systems"
-        (SelectList.fromLists [] (RomanNumeralState initRoman) [ DecimalState initDecimal, BinaryState initBinary ])
-        (SelectList.fromLists [ RomanNumeral ] Decimal [])
+        (SelectList.fromLists []
+            (RomanNumeralState initRoman)
+            [ DecimalState initDecimal
+            , BinaryState initBinary
+            , HexState initHex
+            ]
+        )
+        (SelectList.fromLists [ RomanNumeral ] Decimal [ Binary, Hex ])
 
 
 converterName : NumberSystem -> String
@@ -107,10 +120,13 @@ getInput state =
             romanNumeralToString number
 
         DecimalState number ->
-            fourDigitDecimalNumberToString number
+            decimalNumberToString number
 
         BinaryState number ->
             binaryNumberToString number
+
+        HexState number ->
+            hexNumberToString number
 
 
 input : NumberSystem -> InputField
@@ -133,6 +149,9 @@ inputSystemName state =
         BinaryState _ ->
             "Binary"
 
+        HexState _ ->
+            "Hexadecimal"
+
 
 inputName : NumberSystem -> String
 inputName (NumberSystem _ inputs _) =
@@ -149,6 +168,12 @@ outputSystemName system =
 
         Decimal ->
             "Decimals"
+
+        Binary ->
+            "Binary"
+
+        Hex ->
+            "Hexadecimal"
 
 
 outputName : NumberSystem -> String
@@ -204,6 +229,13 @@ romanNumeralToString (RomanNumber numbers) =
         |> String.join ""
 
 
+hexNumberToString : HexNumber -> String
+hexNumberToString (HexNumber numbers) =
+    numbers
+        |> List.map hexDigitToString
+        |> String.join ""
+
+
 selectInputF : String -> SelectList NumberSystemState -> SelectList NumberSystemState
 selectInputF name inputs =
     select (\input -> (inputSystemName input) == name) inputs
@@ -234,30 +266,36 @@ romanValue number digit =
         |> RomanValue digit
 
 
-decimalValue : FourDigitDecimalNumber -> DecimalDigit -> Value
-decimalValue number digit =
+decimalValue : DecimalNumber -> NumberSystemOutput -> DecimalDigit -> Value
+decimalValue number output digit =
     number
-        |> possibleNextDecimal
+        |> possibleNextDecimal output
         |> List.member digit
         |> DecimalValue digit
 
 
 values : NumberSystem -> Values
-values (NumberSystem _ inputs _) =
+values (NumberSystem _ inputs outputs) =
     case (selected inputs) of
         DecimalState number ->
-            IntValues
-                { zero = decimalValue number Zero
-                , one = decimalValue number One
-                , two = decimalValue number Two
-                , three = decimalValue number Three
-                , four = decimalValue number Four
-                , five = decimalValue number Five
-                , six = decimalValue number Six
-                , seven = decimalValue number Seven
-                , eight = decimalValue number Eight
-                , nine = decimalValue number Nine
-                }
+            let
+                val =
+                    outputs
+                        |> selected
+                        |> decimalValue number
+            in
+                IntValues
+                    { zero = val Zero
+                    , one = val One
+                    , two = val Two
+                    , three = val Three
+                    , four = val Four
+                    , five = val Five
+                    , six = val Six
+                    , seven = val Seven
+                    , eight = val Eight
+                    , nine = val Nine
+                    }
 
         RomanNumeralState number ->
             RomanValues
@@ -276,27 +314,25 @@ values (NumberSystem _ inputs _) =
                 , one = BinaryValue BinaryOne True
                 }
 
-
-
---values (NumberSystem _ inputs _) =
---    HexValues
---        { zero = HexValue HexZero True
---        , one = HexValue HexOne True
---        , two = HexValue HexTwo True
---        , three = HexValue HexThree True
---        , four = HexValue HexFour True
---        , five = HexValue HexFive True
---        , six = HexValue HexSix True
---        , seven = HexValue HexSeven True
---        , eight = HexValue HexEight True
---        , nine = HexValue HexNine True
---        , ten = HexValue HexTen True
---        , eleven = HexValue HexEleven True
---        , twelve = HexValue HexTwelve True
---        , thirteen = HexValue HexThirteen True
---        , fourteen = HexValue HexFourteen True
---        , fifteen = HexValue HexFifteen True
---        }
+        HexState _ ->
+            HexValues
+                { zero = HexValue HexZero True
+                , one = HexValue HexOne True
+                , two = HexValue HexTwo True
+                , three = HexValue HexThree True
+                , four = HexValue HexFour True
+                , five = HexValue HexFive True
+                , six = HexValue HexSix True
+                , seven = HexValue HexSeven True
+                , eight = HexValue HexEight True
+                , nine = HexValue HexNine True
+                , ten = HexValue HexTen True
+                , eleven = HexValue HexEleven True
+                , twelve = HexValue HexTwelve True
+                , thirteen = HexValue HexThirteen True
+                , fourteen = HexValue HexFourteen True
+                , fifteen = HexValue HexFifteen True
+                }
 
 
 decimalGroup : RomanDigit -> DecimalGroup
@@ -370,12 +406,12 @@ addToRomanGroup ( group, digit ) grouped =
             { grouped | ones = digit :: grouped.ones }
 
 
-addValueToNumberSystemInput : Value -> NumberSystemState -> NumberSystemState
-addValueToNumberSystemInput value input =
+addValueToNumberSystemInput : NumberSystemOutput -> Value -> NumberSystemState -> NumberSystemState
+addValueToNumberSystemInput output value input =
     case ( input, value ) of
         ( DecimalState number, DecimalValue digit _ ) ->
             number
-                |> addDecimalDigit digit
+                |> addDecimalDigit output digit
                 |> DecimalState
 
         ( RomanNumeralState number, RomanValue digit _ ) ->
@@ -388,13 +424,18 @@ addValueToNumberSystemInput value input =
                 |> addBinaryDigit digit
                 |> BinaryState
 
+        ( HexState number, HexValue digit _ ) ->
+            number
+                |> addHexDigit digit
+                |> HexState
+
         _ ->
             input
 
 
 addToInput : NumberSystem -> Value -> NumberSystem
 addToInput (NumberSystem name inputs outputs) value =
-    NumberSystem name (mapSelected (addValueToNumberSystemInput value) inputs) outputs
+    NumberSystem name (mapSelected (addValueToNumberSystemInput (selected outputs) value) inputs) outputs
 
 
 parseRoman : List RomanDigit -> GroupedRomanDigits
@@ -409,32 +450,117 @@ convert (NumberSystem _ inputs outputs) =
         |> SingleStringOutputField
 
 
+truncateDecimalToFourDigits : DecimalNumber -> FourDigitDecimalNumber
+truncateDecimalToFourDigits (DecimalNumber digits) =
+    case digits of
+        a :: [] ->
+            FourDigitDecimalNumber ( Zero, Zero, Zero, a )
+
+        a :: b :: [] ->
+            FourDigitDecimalNumber ( Zero, Zero, a, b )
+
+        a :: b :: c :: [] ->
+            FourDigitDecimalNumber ( Zero, a, b, c )
+
+        a :: b :: c :: d :: [] ->
+            if List.member a [ Zero, One, Two, Three ] then
+                FourDigitDecimalNumber ( a, b, c, d )
+            else
+                FourDigitDecimalNumber ( Zero, Zero, Zero, Zero )
+
+        _ ->
+            FourDigitDecimalNumber ( Zero, Zero, Zero, Zero )
+
+
 makeConversion : NumberSystemState -> NumberSystemOutput -> String
 makeConversion input output =
     case ( input, output ) of
         ( RomanNumeralState number, RomanNumeral ) ->
-            romanNumeralToString number
+            number
+                |> romanNumeralToString
 
         ( RomanNumeralState number, Decimal ) ->
             number
                 |> convertFromRoman
-                |> fourDigitDecimalNumberToString
+                |> decimalNumberToString
+
+        ( RomanNumeralState number, Binary ) ->
+            number
+                |> convertFromRoman
+                |> convertToBinary
+                |> binaryNumberToString
+
+        ( RomanNumeralState number, Hex ) ->
+            number
+                |> convertFromRoman
+                |> convertToBinary
+                |> convertBinaryToHex
+                |> hexNumberToString
 
         ( DecimalState number, RomanNumeral ) ->
             number
+                |> truncateDecimalToFourDigits
                 |> convertToRoman
                 |> romanNumeralToString
 
         ( DecimalState number, Decimal ) ->
-            fourDigitDecimalNumberToString number
+            number
+                |> decimalNumberToString
+
+        ( DecimalState number, Binary ) ->
+            number
+                |> convertToBinary
+                |> binaryNumberToString
+
+        ( DecimalState number, Hex ) ->
+            number
+                |> convertToBinary
+                |> convertBinaryToHex
+                |> hexNumberToString
 
         ( BinaryState number, RomanNumeral ) ->
-            "m"
+            number
+                |> convertFromBinary
+                |> truncateDecimalToFourDigits
+                |> convertToRoman
+                |> romanNumeralToString
 
         ( BinaryState number, Decimal ) ->
             number
                 |> convertFromBinary
                 |> decimalNumberToString
+
+        ( BinaryState number, Binary ) ->
+            number
+                |> binaryNumberToString
+
+        ( BinaryState number, Hex ) ->
+            number
+                |> convertBinaryToHex
+                |> hexNumberToString
+
+        ( HexState number, RomanNumeral ) ->
+            number
+                |> convertHexToBinary
+                |> convertFromBinary
+                |> truncateDecimalToFourDigits
+                |> convertToRoman
+                |> romanNumeralToString
+
+        ( HexState number, Decimal ) ->
+            number
+                |> convertHexToBinary
+                |> convertFromBinary
+                |> decimalNumberToString
+
+        ( HexState number, Binary ) ->
+            number
+                |> convertHexToBinary
+                |> binaryNumberToString
+
+        ( HexState number, Hex ) ->
+            number
+                |> hexNumberToString
 
 
 mapInputNames : (String -> a) -> NumberSystem -> List a
@@ -487,18 +613,46 @@ convertRomanThousands romanDigits =
         Zero
 
 
-convertFromRoman : RomanNumber -> FourDigitDecimalNumber
+removeLeadingZeroes : digit -> List digit -> List digit
+removeLeadingZeroes zero list =
+    let
+        helper e l =
+            if (e == zero) then
+                case l of
+                    [] ->
+                        []
+
+                    _ ->
+                        l ++ [ e ]
+            else
+                l ++ [ e ]
+
+        keepOneZero l =
+            case l of
+                [] ->
+                    [ zero ]
+
+                _ ->
+                    l
+    in
+        list
+            |> List.foldl helper []
+            |> keepOneZero
+
+
+convertFromRoman : RomanNumber -> DecimalNumber
 convertFromRoman (RomanNumber digits) =
     let
         grouped =
             parseRoman digits
     in
-        FourDigitDecimalNumber
-            ( convertRomanThousands grouped.thousands
-            , convertRomanDigitsToDigit ( C, D, M ) grouped.hundreds
-            , convertRomanDigitsToDigit ( X, L, C ) grouped.tens
-            , convertRomanDigitsToDigit ( I, V, X ) grouped.ones
-            )
+        convertRomanThousands grouped.thousands
+            :: convertRomanDigitsToDigit ( C, D, M ) grouped.hundreds
+            :: convertRomanDigitsToDigit ( X, L, C ) grouped.tens
+            :: convertRomanDigitsToDigit ( I, V, X ) grouped.ones
+            :: []
+            |> removeLeadingZeroes Zero
+            |> DecimalNumber
 
 
 convertDigitToRomanDigit : ( RomanDigit, RomanDigit, RomanDigit ) -> DecimalDigit -> List RomanDigit
@@ -560,11 +714,28 @@ convertToRoman (FourDigitDecimalNumber ( thousands, hundreds, tens, ones )) =
         |> RomanNumber
 
 
-possibleNextDecimal : FourDigitDecimalNumber -> List DecimalDigit
-possibleNextDecimal (FourDigitDecimalNumber ( thousands, hundreds, tens, ones )) =
-    if thousands /= Zero || not (List.member hundreds [ Zero, One, Two, Three ]) then
-        []
-    else
+lessThan400 : List DecimalDigit -> Bool
+lessThan400 digits =
+    case digits of
+        [] ->
+            True
+
+        a :: [] ->
+            True
+
+        a :: b :: [] ->
+            True
+
+        a :: b :: c :: [] ->
+            List.member a [ Zero, One, Two, Three ]
+
+        _ ->
+            False
+
+
+possibleNextDecimal : NumberSystemOutput -> DecimalNumber -> List DecimalDigit
+possibleNextDecimal output (DecimalNumber numbers) =
+    if lessThan400 numbers then
         [ One
         , Two
         , Three
@@ -576,19 +747,26 @@ possibleNextDecimal (FourDigitDecimalNumber ( thousands, hundreds, tens, ones ))
         , Nine
         , Zero
         ]
+    else
+        []
 
 
-addDecimalDigit : DecimalDigit -> FourDigitDecimalNumber -> FourDigitDecimalNumber
-addDecimalDigit digit ((FourDigitDecimalNumber ( thousands, hundreds, tens, ones )) as numbers) =
-    if possibleNextDecimal numbers |> List.member digit then
-        FourDigitDecimalNumber ( hundreds, tens, ones, digit )
+addDecimalDigit : NumberSystemOutput -> DecimalDigit -> DecimalNumber -> DecimalNumber
+addDecimalDigit output digit ((DecimalNumber digits) as numbers) =
+    if possibleNextDecimal output numbers |> List.member digit then
+        if digits == [ Zero ] then
+            DecimalNumber [ digit ]
+        else
+            digits
+                ++ [ digit ]
+                |> DecimalNumber
     else
         numbers
 
 
-initDecimal : FourDigitDecimalNumber
+initDecimal : DecimalNumber
 initDecimal =
-    FourDigitDecimalNumber ( Zero, Zero, Zero, Zero )
+    DecimalNumber [ Zero ]
 
 
 allRomanDigits : List RomanDigit
@@ -805,6 +983,18 @@ addBinaryDigit digit (BinaryNumber digits) =
                 |> BinaryNumber
 
 
+addHexDigit : HexDigit -> HexNumber -> HexNumber
+addHexDigit digit (HexNumber digits) =
+    case digits of
+        HexZero :: [] ->
+            HexNumber [ digit ]
+
+        _ ->
+            digits
+                ++ [ digit ]
+                |> HexNumber
+
+
 backspaceBinary : BinaryNumber -> BinaryNumber
 backspaceBinary (BinaryNumber numbers) =
     case numbers of
@@ -817,9 +1007,14 @@ backspaceBinary (BinaryNumber numbers) =
                 |> BinaryNumber
 
 
-backspaceDecimal : FourDigitDecimalNumber -> FourDigitDecimalNumber
-backspaceDecimal (FourDigitDecimalNumber ( thousands, hundreds, tens, ones )) =
-    FourDigitDecimalNumber ( Zero, thousands, hundreds, tens )
+backspaceDecimal : DecimalNumber -> DecimalNumber
+backspaceDecimal (DecimalNumber digits) =
+    if List.length digits <= 1 then
+        DecimalNumber [ Zero ]
+    else
+        digits
+            |> List.take (List.length digits - 1)
+            |> DecimalNumber
 
 
 backspaceRoman : RomanNumber -> RomanNumber
@@ -827,6 +1022,16 @@ backspaceRoman (RomanNumber numbers) =
     numbers
         |> List.take ((List.length numbers) - 1)
         |> RomanNumber
+
+
+backspaceHex : HexNumber -> HexNumber
+backspaceHex (HexNumber digits) =
+    if List.length digits <= 1 then
+        HexNumber [ HexZero ]
+    else
+        digits
+            |> List.take (List.length digits - 1)
+            |> HexNumber
 
 
 backspace : NumberSystem -> NumberSystem
@@ -849,6 +1054,11 @@ backspace (NumberSystem name inputs outputs) =
                     number
                         |> backspaceBinary
                         |> BinaryState
+
+                HexState number ->
+                    number
+                        |> backspaceHex
+                        |> HexState
     in
         NumberSystem name (mapSelected helper inputs) outputs
 
@@ -861,6 +1071,11 @@ initRoman =
 initBinary : BinaryNumber
 initBinary =
     BinaryNumber [ BinaryZero ]
+
+
+initHex : HexNumber
+initHex =
+    HexNumber [ HexZero ]
 
 
 intToDecimal : Int -> DecimalNumber
@@ -1002,3 +1217,154 @@ convertToBinary number =
         int
             |> helperRec (nextTwoFactor int 1)
             |> BinaryNumber
+
+
+convertHexDigitToBinary : HexDigit -> List BinaryDigit
+convertHexDigitToBinary digit =
+    case digit of
+        HexOne ->
+            [ BinaryZero, BinaryZero, BinaryZero, BinaryOne ]
+
+        HexTwo ->
+            [ BinaryZero, BinaryZero, BinaryOne, BinaryZero ]
+
+        HexThree ->
+            [ BinaryZero, BinaryZero, BinaryOne, BinaryOne ]
+
+        HexFour ->
+            [ BinaryZero, BinaryOne, BinaryZero, BinaryZero ]
+
+        HexFive ->
+            [ BinaryZero, BinaryOne, BinaryZero, BinaryOne ]
+
+        HexSix ->
+            [ BinaryZero, BinaryOne, BinaryOne, BinaryZero ]
+
+        HexSeven ->
+            [ BinaryZero, BinaryOne, BinaryOne, BinaryOne ]
+
+        HexEight ->
+            [ BinaryOne, BinaryZero, BinaryZero, BinaryZero ]
+
+        HexNine ->
+            [ BinaryOne, BinaryZero, BinaryZero, BinaryOne ]
+
+        HexTen ->
+            [ BinaryOne, BinaryZero, BinaryOne, BinaryZero ]
+
+        HexEleven ->
+            [ BinaryOne, BinaryZero, BinaryOne, BinaryOne ]
+
+        HexTwelve ->
+            [ BinaryOne, BinaryOne, BinaryZero, BinaryZero ]
+
+        HexThirteen ->
+            [ BinaryOne, BinaryOne, BinaryZero, BinaryOne ]
+
+        HexFourteen ->
+            [ BinaryOne, BinaryOne, BinaryOne, BinaryZero ]
+
+        HexFifteen ->
+            [ BinaryOne, BinaryOne, BinaryOne, BinaryOne ]
+
+        HexZero ->
+            [ BinaryZero, BinaryZero, BinaryZero, BinaryZero ]
+
+
+convertHexToBinary : HexNumber -> BinaryNumber
+convertHexToBinary (HexNumber number) =
+    number
+        |> List.concatMap convertHexDigitToBinary
+        |> removeLeadingZeroes BinaryZero
+        |> BinaryNumber
+
+
+convertBinaryDigitsToHexDigit : BinaryDigit -> BinaryDigit -> BinaryDigit -> BinaryDigit -> HexDigit
+convertBinaryDigitsToHexDigit a b c d =
+    case ( a, b, c, d ) of
+        ( BinaryZero, BinaryZero, BinaryZero, BinaryOne ) ->
+            HexOne
+
+        ( BinaryZero, BinaryZero, BinaryOne, BinaryZero ) ->
+            HexTwo
+
+        ( BinaryZero, BinaryZero, BinaryOne, BinaryOne ) ->
+            HexThree
+
+        ( BinaryZero, BinaryOne, BinaryZero, BinaryZero ) ->
+            HexFour
+
+        ( BinaryZero, BinaryOne, BinaryZero, BinaryOne ) ->
+            HexFive
+
+        ( BinaryZero, BinaryOne, BinaryOne, BinaryZero ) ->
+            HexSix
+
+        ( BinaryZero, BinaryOne, BinaryOne, BinaryOne ) ->
+            HexSeven
+
+        ( BinaryOne, BinaryZero, BinaryZero, BinaryZero ) ->
+            HexEight
+
+        ( BinaryOne, BinaryZero, BinaryZero, BinaryOne ) ->
+            HexNine
+
+        ( BinaryOne, BinaryZero, BinaryOne, BinaryZero ) ->
+            HexTen
+
+        ( BinaryOne, BinaryZero, BinaryOne, BinaryOne ) ->
+            HexEleven
+
+        ( BinaryOne, BinaryOne, BinaryZero, BinaryZero ) ->
+            HexTwelve
+
+        ( BinaryOne, BinaryOne, BinaryZero, BinaryOne ) ->
+            HexThirteen
+
+        ( BinaryOne, BinaryOne, BinaryOne, BinaryZero ) ->
+            HexFourteen
+
+        ( BinaryOne, BinaryOne, BinaryOne, BinaryOne ) ->
+            HexFifteen
+
+        ( BinaryZero, BinaryZero, BinaryZero, BinaryZero ) ->
+            HexZero
+
+
+convertRestOfBinaryToHex : { temp : List BinaryDigit, acc : List HexDigit } -> List HexDigit
+convertRestOfBinaryToHex data =
+    case data.temp of
+        a :: [] ->
+            (convertBinaryDigitsToHexDigit BinaryZero BinaryZero BinaryZero a) :: data.acc
+
+        a :: b :: [] ->
+            (convertBinaryDigitsToHexDigit BinaryZero BinaryZero a b) :: data.acc
+
+        a :: b :: c :: [] ->
+            (convertBinaryDigitsToHexDigit BinaryZero a b c) :: data.acc
+
+        a :: b :: c :: d :: [] ->
+            (convertBinaryDigitsToHexDigit a b c d) :: data.acc
+
+        _ ->
+            data.acc
+
+
+convertBinaryToHex : BinaryNumber -> HexNumber
+convertBinaryToHex (BinaryNumber number) =
+    let
+        t : BinaryDigit -> { temp : List BinaryDigit, acc : List HexDigit } -> { temp : List BinaryDigit, acc : List HexDigit }
+        t digit data =
+            case data.temp of
+                a :: b :: c :: [] ->
+                    { temp = [], acc = (convertBinaryDigitsToHexDigit digit a b c) :: data.acc }
+
+                _ ->
+                    { data
+                        | temp = digit :: data.temp
+                    }
+    in
+        number
+            |> List.foldr t { temp = [], acc = [] }
+            |> convertRestOfBinaryToHex
+            |> HexNumber
