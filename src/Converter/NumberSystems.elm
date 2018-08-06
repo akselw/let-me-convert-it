@@ -1,30 +1,24 @@
 module Converter.NumberSystems
     exposing
         ( NumberSystem
-        , convert
-        , initRoman
-        , initDecimal
-        , addRomanDigit
-        , addDecimalDigit
-        , backspace
-        , possibleNextRoman
-        , possibleNextDecimal
-        , parseTest
-        , converter
+          -- input/output
         , input
+        , addToInput
+        , backspace
+        , convert
+          -- names
         , converterName
         , inputName
         , outputName
-        , selectInput
-        , selectOutput
-        , fourDigitDecimalNumberToString
-        , convertFromBinary
-        , decimalToInt
-        , convertToBinary
-        , values
-        , addToInput
         , mapInputNames
         , mapOutputNames
+          -- selection
+        , selectInput
+        , selectOutput
+          -- values
+        , values
+          -- converters
+        , converter
         )
 
 import SelectList exposing (..)
@@ -39,7 +33,7 @@ import Converter.Values exposing (..)
 
 
 type NumberSystem
-    = NumberSystem String (SelectList NumberSystemState) (SelectList NumberSystemOutput)
+    = NumberSystem String (SelectList NumberSystemOutput) (SelectList NumberSystemState)
 
 
 type NumberSystemOutput
@@ -98,6 +92,7 @@ type HexNumber
 converter : NumberSystem
 converter =
     NumberSystem "Number systems"
+        (SelectList.fromLists [ RomanNumeral ] Decimal [ Binary, Hex ])
         (SelectList.fromLists []
             (RomanNumeralState initRoman)
             [ DecimalState initDecimal
@@ -105,7 +100,6 @@ converter =
             , HexState initHex
             ]
         )
-        (SelectList.fromLists [ RomanNumeral ] Decimal [ Binary, Hex ])
 
 
 converterName : NumberSystem -> String
@@ -130,7 +124,7 @@ getInput state =
 
 
 input : NumberSystem -> InputField
-input (NumberSystem _ inputs _) =
+input (NumberSystem _ _ inputs) =
     inputs
         |> selected
         |> getInput
@@ -154,7 +148,7 @@ inputSystemName state =
 
 
 inputName : NumberSystem -> String
-inputName (NumberSystem _ inputs _) =
+inputName (NumberSystem _ _ inputs) =
     inputs
         |> selected
         |> inputSystemName
@@ -177,7 +171,7 @@ outputSystemName system =
 
 
 outputName : NumberSystem -> String
-outputName (NumberSystem _ _ outputs) =
+outputName (NumberSystem _ outputs _) =
     outputs
         |> selected
         |> outputSystemName
@@ -238,12 +232,14 @@ hexNumberToString (HexNumber numbers) =
 
 selectInputF : String -> SelectList NumberSystemState -> SelectList NumberSystemState
 selectInputF name inputs =
-    select (\input -> (inputSystemName input) == name) inputs
+    select (inputSystemName >> (==) name) inputs
 
 
 selectInput : String -> NumberSystem -> NumberSystem
-selectInput name (NumberSystem converterName inputs outputs) =
-    NumberSystem converterName (selectInputF name inputs) outputs
+selectInput name (NumberSystem converterName outputs inputs) =
+    inputs
+        |> selectInputF name
+        |> NumberSystem converterName outputs
 
 
 selectOutputF : String -> SelectList NumberSystemOutput -> SelectList NumberSystemOutput
@@ -252,10 +248,8 @@ selectOutputF name outputs =
 
 
 selectOutput : String -> NumberSystem -> NumberSystem
-selectOutput name (NumberSystem converterName inputs outputs) =
-    outputs
-        |> selectOutputF name
-        |> NumberSystem converterName inputs
+selectOutput name (NumberSystem converterName outputs inputs) =
+    NumberSystem converterName (selectOutputF name outputs) inputs
 
 
 romanValue : RomanNumber -> RomanDigit -> Value
@@ -275,7 +269,7 @@ decimalValue number output digit =
 
 
 values : NumberSystem -> Values
-values (NumberSystem _ inputs outputs) =
+values (NumberSystem _ outputs inputs) =
     case (selected inputs) of
         DecimalState number ->
             let
@@ -434,8 +428,10 @@ addValueToNumberSystemInput output value input =
 
 
 addToInput : NumberSystem -> Value -> NumberSystem
-addToInput (NumberSystem name inputs outputs) value =
-    NumberSystem name (mapSelected (addValueToNumberSystemInput (selected outputs) value) inputs) outputs
+addToInput (NumberSystem name outputs inputs) value =
+    inputs
+        |> mapSelected (addValueToNumberSystemInput (selected outputs) value)
+        |> NumberSystem name outputs
 
 
 parseRoman : List RomanDigit -> GroupedRomanDigits
@@ -445,7 +441,7 @@ parseRoman digits =
 
 
 convert : NumberSystem -> OutputField
-convert (NumberSystem _ inputs outputs) =
+convert (NumberSystem _ outputs inputs) =
     makeConversion (selected inputs) (selected outputs)
         |> SingleStringOutputField
 
@@ -564,15 +560,17 @@ makeConversion input output =
 
 
 mapInputNames : (String -> a) -> NumberSystem -> List a
-mapInputNames f (NumberSystem _ inputs _) =
-    toList inputs
+mapInputNames f (NumberSystem _ _ inputs) =
+    inputs
+        |> toList
         |> List.map inputSystemName
         |> List.map f
 
 
 mapOutputNames : (String -> a) -> NumberSystem -> List a
-mapOutputNames f (NumberSystem _ _ outputs) =
-    toList outputs
+mapOutputNames f (NumberSystem _ outputs _) =
+    outputs
+        |> toList
         |> List.map outputSystemName
         |> List.map f
 
@@ -1035,7 +1033,7 @@ backspaceHex (HexNumber digits) =
 
 
 backspace : NumberSystem -> NumberSystem
-backspace (NumberSystem name inputs outputs) =
+backspace (NumberSystem name outputs inputs) =
     let
         helper : NumberSystemState -> NumberSystemState
         helper state =
@@ -1060,7 +1058,9 @@ backspace (NumberSystem name inputs outputs) =
                         |> backspaceHex
                         |> HexState
     in
-        NumberSystem name (mapSelected helper inputs) outputs
+        inputs
+            |> mapSelected helper
+            |> NumberSystem name outputs
 
 
 initRoman : RomanNumber

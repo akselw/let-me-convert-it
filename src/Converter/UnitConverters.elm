@@ -33,7 +33,7 @@ import Converter.Values exposing (..)
 
 
 type UnitConverterState
-    = UnitConverterState String (SelectList InputUnitState) (SelectList UnitType)
+    = UnitConverterState String (SelectList UnitType) (SelectList InputUnitState)
 
 
 type alias ComboInput =
@@ -92,8 +92,10 @@ addValueToUnitInput value input =
 
 
 addToInput : UnitConverterState -> Value -> UnitConverterState
-addToInput (UnitConverterState name inputs outputs) value =
-    UnitConverterState name (mapSelected (addValueToUnitInput value) inputs) outputs
+addToInput (UnitConverterState name outputs inputs) value =
+    inputs
+        |> mapSelected (addValueToUnitInput value)
+        |> UnitConverterState name outputs
 
 
 unitValues : InputUnitState -> FloatDict
@@ -128,7 +130,7 @@ unitValues inputState =
 
 
 values : UnitConverterState -> Values
-values (UnitConverterState _ inputs _) =
+values (UnitConverterState _ _ inputs) =
     inputs
         |> selected
         |> unitValues
@@ -136,7 +138,7 @@ values (UnitConverterState _ inputs _) =
 
 
 input : UnitConverterState -> InputField
-input (UnitConverterState _ inputs _) =
+input (UnitConverterState _ _ inputs) =
     case selected inputs of
         SingleInputState unit value ->
             SingleUnitInputField { value = value, unit = unit.abbreviation }
@@ -219,8 +221,10 @@ unitBackspace inputState =
 
 
 backspace : UnitConverterState -> UnitConverterState
-backspace (UnitConverterState name inputs outputs) =
-    UnitConverterState name (mapSelected unitBackspace inputs) outputs
+backspace (UnitConverterState name outputs inputs) =
+    inputs
+        |> mapSelected unitBackspace
+        |> UnitConverterState name outputs
 
 
 setMajorState : Bool -> InputUnitState -> InputUnitState
@@ -234,7 +238,7 @@ setMajorState active inputState =
 
 
 inputName : UnitConverterState -> String
-inputName (UnitConverterState _ inputs _) =
+inputName (UnitConverterState _ _ inputs) =
     inputs
         |> selected
         |> inputUnitName
@@ -246,15 +250,17 @@ converterName (UnitConverterState name _ _) =
 
 
 mapInputNames : (String -> a) -> UnitConverterState -> List a
-mapInputNames f (UnitConverterState _ inputs _) =
-    toList inputs
+mapInputNames f (UnitConverterState _ _ inputs) =
+    inputs
+        |> toList
         |> List.map inputUnitName
         |> List.map f
 
 
 mapOutputNames : (String -> a) -> UnitConverterState -> List a
-mapOutputNames f (UnitConverterState _ _ outputs) =
-    toList outputs
+mapOutputNames f (UnitConverterState _ outputs _) =
+    outputs
+        |> toList
         |> List.map outputUnitName
         |> List.map f
 
@@ -270,7 +276,7 @@ inputUnitName inputState =
 
 
 outputName : UnitConverterState -> String
-outputName (UnitConverterState _ _ outputs) =
+outputName (UnitConverterState _ outputs _) =
     outputs
         |> selected
         |> outputUnitName
@@ -341,7 +347,7 @@ makeConversion input output =
 
 
 convert : UnitConverterState -> OutputField
-convert (UnitConverterState _ inputs outputs) =
+convert (UnitConverterState _ outputs inputs) =
     let
         input =
             selected inputs
@@ -400,8 +406,10 @@ selectNewInputUnit name inputs =
 
 
 selectInput : String -> UnitConverterState -> UnitConverterState
-selectInput name (UnitConverterState converterName inputs outputs) =
-    UnitConverterState converterName (selectNewInputUnit name inputs) outputs
+selectInput name (UnitConverterState converterName outputs inputs) =
+    inputs
+        |> selectNewInputUnit name
+        |> UnitConverterState converterName outputs
 
 
 inputUnits : InputUnitState -> List UnitType -> String -> SelectList InputUnitState
@@ -418,10 +426,8 @@ selectNewOutputUnit name outputs =
 
 
 selectOutput : String -> UnitConverterState -> UnitConverterState
-selectOutput name (UnitConverterState converterName inputs outputs) =
-    outputs
-        |> selectNewOutputUnit name
-        |> UnitConverterState converterName inputs
+selectOutput name (UnitConverterState converterName outputs inputs) =
+    UnitConverterState converterName (selectNewOutputUnit name outputs) inputs
 
 
 outputUnits : UnitType -> List UnitType -> String -> SelectList UnitType
@@ -448,8 +454,8 @@ restOfConverters =
 distance : UnitConverterState
 distance =
     UnitConverterState "Distance"
-        (inputUnits (SingleInputState meter "1") restOfDistanceUnits "feet and inch")
         (outputUnits (SingleUnit meter) restOfDistanceUnits "centimeter")
+        (inputUnits (SingleInputState meter "1") restOfDistanceUnits "feet and inch")
 
 
 meter : UnitDefinition
@@ -517,8 +523,8 @@ gramDefinition =
 weight : UnitConverterState
 weight =
     UnitConverterState "Weight"
-        (inputUnits (SingleInputState poundDefinition "1") restOfWeightUnits "pound")
         (outputUnits (SingleUnit poundDefinition) restOfWeightUnits "gram")
+        (inputUnits (SingleInputState poundDefinition "1") restOfWeightUnits "pound")
 
 
 restOfWeightUnits : List UnitType
@@ -549,8 +555,8 @@ squareMeterDefinition =
 area : UnitConverterState
 area =
     UnitConverterState "Area"
-        (inputUnits (SingleInputState squareMeterDefinition "1") restOfAreaUnits "square meter")
         (outputUnits (SingleUnit squareMeterDefinition) restOfAreaUnits "square foot")
+        (inputUnits (SingleInputState squareMeterDefinition "1") restOfAreaUnits "square meter")
 
 
 restOfAreaUnits : List UnitType
