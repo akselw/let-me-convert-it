@@ -448,7 +448,7 @@ defaultConverter =
 
 restOfConverters : List UnitConverterState
 restOfConverters =
-    [ weight, area ]
+    [ weight, area, volume ]
 
 
 distance : UnitConverterState
@@ -489,7 +489,7 @@ restOfDistanceUnits =
     , SingleUnit
         { factor = 0.9144
         , name = "yard"
-        , abbreviation = "mi"
+        , abbreviation = "yd"
         }
     , SingleUnit
         { factor = 1609.34
@@ -499,7 +499,7 @@ restOfDistanceUnits =
     , SingleUnit
         { factor = 1852
         , name = "nautical mile"
-        , abbreviation = ""
+        , abbreviation = "NM"
         }
     ]
 
@@ -539,7 +539,7 @@ restOfWeightUnits =
     , SingleUnit
         { factor = 1000
         , name = "metric ton"
-        , abbreviation = ""
+        , abbreviation = "t"
         }
     ]
 
@@ -579,7 +579,7 @@ restOfAreaUnits =
     , SingleUnit
         { factor = 10000
         , name = "hectare"
-        , abbreviation = ""
+        , abbreviation = "ha"
         }
     , SingleUnit
         { factor = 1000000
@@ -605,5 +605,65 @@ restOfAreaUnits =
         { factor = 2589988.110336
         , name = "square mile"
         , abbreviation = "sq mi"
+        }
+    ]
+
+
+litreDefinition : UnitDefinition
+litreDefinition =
+    { factor = 1
+    , name = "litre"
+    , abbreviation = "l"
+    }
+
+
+volume : UnitConverterState
+volume =
+    UnitConverterState "Volume"
+        (outputUnits (SingleUnit litreDefinition) restOfVolumeUnits "litre")
+        (inputUnits (SingleInputState litreDefinition "1") restOfVolumeUnits "gallon")
+
+
+restOfVolumeUnits : List UnitType
+restOfVolumeUnits =
+    [ SingleUnit
+        { factor = 0.1
+        , name = "desilitre"
+        , abbreviation = "dl"
+        }
+    , SingleUnit
+        { factor = 0.01
+        , name = "centilitre"
+        , abbreviation = "cl"
+        }
+    , SingleUnit
+        { factor = 0.001
+        , name = "millilitre"
+        , abbreviation = "ml"
+        }
+    , SingleUnit
+        { factor = 4.54609
+        , name = "gallon"
+        , abbreviation = "gal"
+        }
+    , SingleUnit
+        { factor = 0.568
+        , name = "pint (UK)"
+        , abbreviation = "pt"
+        }
+    , SingleUnit
+        { factor = 0.02957
+        , name = "fluid ounce"
+        , abbreviation = "fl.oz."
+        }
+    , SingleUnit
+        { factor = 1
+        , name = "cubic desimeter"
+        , abbreviation = "dm³"
+        }
+    , SingleUnit
+        { factor = 1000
+        , name = "cubic meter"
+        , abbreviation = "m³"
         }
     ]
